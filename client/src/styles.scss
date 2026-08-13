@@ -1,0 +1,94 @@
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: Roboto, "Helvetica Neue", sans-serif;
+  background: #f6f7f9;
+}
+
+.page {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 20px;
+
+  h1 {
+    font-size: 24px;
+    font-weight: 500;
+    margin: 0;
+  }
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+table.mat-mdc-table {
+  width: 100%;
+}
+
+.clickable-row {
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.04);
+  }
+}
+
+.status-chip {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+
+  &.in_progress {
+    background: #e3f2fd;
+    color: #1565c0;
+  }
+
+  &.approved {
+    background: #e8f5e9;
+    color: #2e7d32;
+  }
+
+  &.rejected {
+    background: #ffebee;
+    color: #c62828;
+  }
+
+  &.returned {
+    background: #fff8e1;
+    color: #b26a00;
+  }
+
+  &.inactive {
+    background: #eceff1;
+    color: #546e7a;
+  }
+}
+
+.empty-state {
+  text-align: center;
+  color: #78909c;
+  padding: 48px 16px;
+
+  mat-icon {
+    font-size: 44px;
+    width: 44px;
+    height: 44px;
+    margin-bottom: 8px;
+  }
+}
+
+.muted {
+  color: #78909c;
+}

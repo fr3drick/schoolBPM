@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Secrets & local environment — never commit real credentials
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Angular cache
+.angular/
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+logs/
+
+# Claude Code — keep shared launch config, ignore machine-local settings
+.claude/settings.local.json
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
