@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, permGuard } from './core/guards';
+import { authGuard, permGuard, platformGuard } from './core/guards';
 
 export const routes: Routes = [
   { path: 'login', loadComponent: () => import('./features/login/login').then((m) => m.LoginComponent) },
@@ -14,6 +14,11 @@ export const routes: Routes = [
     loadComponent: () => import('./layout/shell').then((m) => m.ShellComponent),
     children: [
       { path: '', pathMatch: 'full', loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.DashboardComponent) },
+      {
+        path: 'platform/schools',
+        canActivate: [platformGuard],
+        loadComponent: () => import('./features/platform/schools').then((m) => m.SchoolsComponent),
+      },
       {
         path: 'start',
         canActivate: [permGuard],

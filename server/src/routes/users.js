@@ -10,7 +10,9 @@ const router = Router();
 router.use(requireAuth, permit('users.manage'));
 
 router.get('/', async (req, res) => {
-  const users = await User.find().populate('role').sort({ createdAt: -1 });
+  const users = await User.find({ school: req.user.school._id })
+    .populate('role')
+    .sort({ createdAt: -1 });
   res.json({ users: users.map((u) => u.toProfile()) });
 });
 
@@ -20,7 +22,7 @@ router.post('/', async (req, res) => {
     throw httpError(400, 'Name, email, password and role are required');
   }
   if (String(password).length < 8) throw httpError(400, 'Password must be at least 8 characters');
-  const role = await Role.findById(roleId);
+  const role = await Role.findOne({ _id: roleId, school: req.user.school._id });
   if (!role) throw httpError(400, 'Role not found');
   if (await User.findOne({ email: String(email).toLowerCase() })) {
     throw httpError(409, 'A user with this email already exists');
@@ -28,6 +30,7 @@ router.post('/', async (req, res) => {
   const user = await User.create({
     name,
     email,
+    school: req.user.school._id,
     role: role._id,
     passwordHash: await bcrypt.hash(password, 10),
     mustChangePassword: Boolean(mustChangePassword),
@@ -38,7 +41,7 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const user = await User.findById(req.params.id);
+  const user = await User.findOne({ _id: req.params.id, school: req.user.school._id });
   if (!user) throw httpError(404, 'User not found');
   const { name, email, roleId, active } = req.body || {};
   if (active === false && String(user._id) === String(req.user._id)) {
@@ -51,7 +54,7 @@ router.put('/:id', async (req, res) => {
     user.email = email;
   }
   if (roleId !== undefined) {
-    const role = await Role.findById(roleId);
+    const role = await Role.findOne({ _id: roleId, school: req.user.school._id });
     if (!role) throw httpError(400, 'Role not found');
     user.role = role._id;
   }
@@ -67,7 +70,7 @@ router.post('/:id/reset-password', async (req, res) => {
   if (!password || String(password).length < 8) {
     throw httpError(400, 'Password must be at least 8 characters');
   }
-  const user = await User.findById(req.params.id);
+  const user = await User.findOne({ _id: req.params.id, school: req.user.school._id });
   if (!user) throw httpError(404, 'User not found');
   user.passwordHash = await bcrypt.hash(password, 10);
   user.mustChangePassword = true;

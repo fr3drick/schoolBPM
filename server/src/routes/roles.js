@@ -12,8 +12,11 @@ router.use(requireAuth);
 
 // Role lists are also needed by the user editor and the process designer.
 router.get('/', permit('roles.manage', 'users.manage', 'definitions.manage'), async (req, res) => {
-  const roles = await Role.find().sort({ createdAt: 1 });
-  const counts = await User.aggregate([{ $group: { _id: '$role', count: { $sum: 1 } } }]);
+  const roles = await Role.find({ school: req.user.school._id }).sort({ createdAt: 1 });
+  const counts = await User.aggregate([
+    { $match: { school: req.user.school._id } },
+    { $group: { _id: '$role', count: { $sum: 1 } } },
+  ]);
   const countMap = new Map(counts.map((c) => [String(c._id), c.count]));
   res.json({
     roles: roles.map((r) => ({
@@ -41,10 +44,11 @@ function cleanPermissions(perms) {
 router.post('/', permit('roles.manage'), async (req, res) => {
   const { name, description = '', permissions = [] } = req.body || {};
   if (!name?.trim()) throw httpError(400, 'Role name is required');
-  if (await Role.findOne({ name: name.trim() })) {
+  if (await Role.findOne({ name: name.trim(), school: req.user.school._id })) {
     throw httpError(409, 'A role with this name already exists');
   }
   const role = await Role.create({
+    school: req.user.school._id,
     name: name.trim(),
     description,
     permissions: cleanPermissions(permissions),
@@ -54,12 +58,16 @@ router.post('/', permit('roles.manage'), async (req, res) => {
 });
 
 router.put('/:id', permit('roles.manage'), async (req, res) => {
-  const role = await Role.findById(req.params.id);
+  const role = await Role.findOne({ _id: req.params.id, school: req.user.school._id });
   if (!role) throw httpError(404, 'Role not found');
   if (role.isSystem) throw httpError(400, 'The Super Admin role cannot be modified');
   const { name, description, permissions } = req.body || {};
   if (name !== undefined) {
-    const clash = await Role.findOne({ name: name.trim(), _id: { $ne: role._id } });
+    const clash = await Role.findOne({
+      name: name.trim(),
+      school: req.user.school._id,
+      _id: { $ne: role._id },
+    });
     if (clash) throw httpError(409, 'A role with this name already exists');
     role.name = name.trim();
   }
@@ -71,7 +79,7 @@ router.put('/:id', permit('roles.manage'), async (req, res) => {
 });
 
 router.delete('/:id', permit('roles.manage'), async (req, res) => {
-  const role = await Role.findById(req.params.id);
+  const role = await Role.findOne({ _id: req.params.id, school: req.user.school._id });
   if (!role) throw httpError(404, 'Role not found');
   if (role.isSystem) throw httpError(400, 'The Super Admin role cannot be deleted');
   const userCount = await User.countDocuments({ role: role._id });

@@ -25,9 +25,10 @@ const stepSchema = new mongoose.Schema(
 
 const definitionSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, unique: true, trim: true },
-    // Short prefix for reference numbers, e.g. "LR" -> LR-0001
-    key: { type: String, required: true, unique: true, uppercase: true, match: /^[A-Z]{2,5}$/ },
+    school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true, index: true },
+    name: { type: String, required: true, trim: true },
+    // Short prefix for reference numbers, e.g. "LR" -> LR-0001 (per school)
+    key: { type: String, required: true, uppercase: true, match: /^[A-Z]{2,5}$/ },
     category: { type: String, default: 'General' },
     description: { type: String, default: '' },
     // Empty array = any role with instances.initiate can start it
@@ -39,5 +40,8 @@ const definitionSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+definitionSchema.index({ school: 1, name: 1 }, { unique: true });
+definitionSchema.index({ school: 1, key: 1 }, { unique: true });
 
 export default mongoose.model('ProcessDefinition', definitionSchema);

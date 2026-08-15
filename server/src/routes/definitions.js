@@ -2,12 +2,12 @@ import { Router } from 'express';
 import ProcessDefinition, { FIELD_TYPES } from '../models/ProcessDefinition.js';
 import ProcessInstance from '../models/ProcessInstance.js';
 import Role from '../models/Role.js';
-import { requireAuth, permit, hasPerm } from '../middleware/auth.js';
+import { requireAuth, requireSchool, permit, hasPerm } from '../middleware/auth.js';
 import { logAudit } from '../services/audit.js';
 import { httpError } from '../services/errors.js';
 
 const router = Router();
-router.use(requireAuth);
+router.use(requireAuth, requireSchool);
 
 function canInitiate(user, def) {
   return (
@@ -22,7 +22,7 @@ function canInitiate(user, def) {
 // otherwise: the active definitions the caller is allowed to start.
 router.get('/', async (req, res) => {
   if (req.query.all === '1' && hasPerm(req.user, 'definitions.manage')) {
-    const definitions = await ProcessDefinition.find()
+    const definitions = await ProcessDefinition.find({ school: req.user.school._id })
       .populate('initiatorRoles', 'name')
       .populate('steps.approverRoles', 'name')
       .sort({ name: 1 });
@@ -30,6 +30,7 @@ router.get('/', async (req, res) => {
   }
   if (!hasPerm(req.user, 'instances.initiate')) return res.json({ definitions: [] });
   const definitions = await ProcessDefinition.find({
+    school: req.user.school._id,
     active: true,
     $or: [{ initiatorRoles: { $size: 0 } }, { initiatorRoles: req.user.role._id }],
   })
@@ -39,7 +40,7 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  const def = await ProcessDefinition.findById(req.params.id)
+  const def = await ProcessDefinition.findOne({ _id: req.params.id, school: req.user.school._id })
     .populate('initiatorRoles', 'name')
     .populate('steps.approverRoles', 'name');
   if (!def) throw httpError(404, 'Process not found');
@@ -59,7 +60,7 @@ function slugify(text) {
   );
 }
 
-async function validateDefinition(body, excludeId) {
+async function validateDefinition(body, schoolId, excludeId) {
   const {
     name,
     key,
@@ -76,10 +77,10 @@ async function validateDefinition(body, excludeId) {
     throw httpError(400, 'Key must be 2–5 letters (used for reference numbers, e.g. LR)');
   }
   const upperKey = String(key).toUpperCase();
-  if (await ProcessDefinition.findOne({ name: name.trim(), _id: { $ne: excludeId } })) {
+  if (await ProcessDefinition.findOne({ school: schoolId, name: name.trim(), _id: { $ne: excludeId } })) {
     throw httpError(409, 'A process with this name already exists');
   }
-  if (await ProcessDefinition.findOne({ key: upperKey, _id: { $ne: excludeId } })) {
+  if (await ProcessDefinition.findOne({ school: schoolId, key: upperKey, _id: { $ne: excludeId } })) {
     throw httpError(409, 'A process with this key already exists');
   }
   if (!Array.isArray(steps) || steps.length === 0) {
@@ -90,7 +91,7 @@ async function validateDefinition(body, excludeId) {
     [...initiatorRoles, ...steps.flatMap((s) => s.approverRoles || [])].map(String)
   );
   if (roleIds.size) {
-    const found = await Role.countDocuments({ _id: { $in: [...roleIds] } });
+    const found = await Role.countDocuments({ _id: { $in: [...roleIds] }, school: schoolId });
     if (found !== roleIds.size) throw httpError(400, 'One or more referenced roles do not exist');
   }
 
@@ -138,16 +139,20 @@ async function validateDefinition(body, excludeId) {
 }
 
 router.post('/', permit('definitions.manage'), async (req, res) => {
-  const clean = await validateDefinition(req.body);
-  const def = await ProcessDefinition.create({ ...clean, createdBy: req.user._id });
+  const clean = await validateDefinition(req.body, req.user.school._id);
+  const def = await ProcessDefinition.create({
+    ...clean,
+    school: req.user.school._id,
+    createdBy: req.user._id,
+  });
   logAudit(req.user, 'definitions.create', 'definition', def._id, { name: def.name });
   res.status(201).json({ definition: def });
 });
 
 router.put('/:id', permit('definitions.manage'), async (req, res) => {
-  const def = await ProcessDefinition.findById(req.params.id);
+  const def = await ProcessDefinition.findOne({ _id: req.params.id, school: req.user.school._id });
   if (!def) throw httpError(404, 'Process not found');
-  const clean = await validateDefinition(req.body, def._id);
+  const clean = await validateDefinition(req.body, req.user.school._id, def._id);
   Object.assign(def, clean);
   await def.save();
   logAudit(req.user, 'definitions.update', 'definition', def._id, { name: def.name });
@@ -155,7 +160,7 @@ router.put('/:id', permit('definitions.manage'), async (req, res) => {
 });
 
 router.delete('/:id', permit('definitions.manage'), async (req, res) => {
-  const def = await ProcessDefinition.findById(req.params.id);
+  const def = await ProcessDefinition.findOne({ _id: req.params.id, school: req.user.school._id });
   if (!def) throw httpError(404, 'Process not found');
   const count = await ProcessInstance.countDocuments({ definition: def._id });
   if (count) {

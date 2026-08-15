@@ -46,6 +46,10 @@ export class AuthService {
     this.router.navigate(['/login']);
   }
 
+  isPlatformAdmin(): boolean {
+    return this.user()?.isPlatformAdmin ?? false;
+  }
+
   hasPerm(perm: string): boolean {
     return this.user()?.role?.permissions?.includes(perm) ?? false;
   }

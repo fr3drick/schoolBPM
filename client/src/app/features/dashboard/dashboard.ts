@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -71,6 +71,11 @@ export class DashboardComponent {
   stats = signal<DashboardStats | null>(null);
 
   constructor() {
+    if (this.auth.isPlatformAdmin()) {
+      // Platform staff have no school dashboard — their home is the console.
+      inject(Router).navigate(['/platform/schools']);
+      return;
+    }
     this.api.stats().subscribe((s) => this.stats.set(s));
   }
 

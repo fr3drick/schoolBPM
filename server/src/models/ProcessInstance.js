@@ -20,7 +20,9 @@ const historySchema = new mongoose.Schema(
 
 const instanceSchema = new mongoose.Schema(
   {
-    reference: { type: String, required: true, unique: true },
+    school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true, index: true },
+    // Unique per school — two schools can both have LR-0001.
+    reference: { type: String, required: true },
     definition: { type: mongoose.Schema.Types.ObjectId, ref: 'ProcessDefinition', required: true },
     // Frozen copy of the definition (fields + steps with role names) taken at
     // submission time, so past requests stay intact if the process is edited.
@@ -42,7 +44,8 @@ const instanceSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-instanceSchema.index({ status: 1, currentApproverRoles: 1 });
+instanceSchema.index({ school: 1, reference: 1 }, { unique: true });
+instanceSchema.index({ school: 1, status: 1, currentApproverRoles: 1 });
 instanceSchema.index({ initiator: 1, updatedAt: -1 });
 
 export default mongoose.model('ProcessInstance', instanceSchema);

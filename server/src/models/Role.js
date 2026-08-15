@@ -2,14 +2,17 @@ import mongoose from 'mongoose';
 
 const roleSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, unique: true, trim: true },
+    school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true, index: true },
+    name: { type: String, required: true, trim: true },
     description: { type: String, default: '' },
     permissions: { type: [String], default: [] },
-    // The seeded Super Admin role: cannot be edited or deleted, so the
-    // platform always keeps an account type that manages users/roles only.
+    // Each school's seeded Super Admin role: cannot be edited or deleted, so
+    // every school keeps an account type that manages users/roles only.
     isSystem: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
+
+roleSchema.index({ school: 1, name: 1 }, { unique: true });
 
 export default mongoose.model('Role', roleSchema);

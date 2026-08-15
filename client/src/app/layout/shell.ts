@@ -36,6 +36,11 @@ interface NavItem {
           <mat-icon>school</mat-icon>
           <span>School BPM</span>
         </div>
+        @if (auth.user()?.school; as school) {
+          <div class="tenant">{{ school.name }}</div>
+        } @else if (auth.isPlatformAdmin()) {
+          <div class="tenant">Platform console</div>
+        }
         <mat-nav-list>
           @for (item of mainNav(); track item.link) {
             <a mat-list-item [routerLink]="item.link" routerLinkActive="active-link"
@@ -117,8 +122,12 @@ interface NavItem {
     .container { height: 100%; }
     .sidenav { width: 240px; }
     .brand {
-      display: flex; align-items: center; gap: 10px; padding: 18px 16px;
+      display: flex; align-items: center; gap: 10px; padding: 18px 16px 4px;
       font-size: 18px; font-weight: 600; color: #1565c0;
+    }
+    .tenant {
+      padding: 0 16px 12px 42px; font-size: 12px; color: #78909c;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .nav-section {
       padding: 14px 16px 4px; font-size: 11px; font-weight: 600;
@@ -150,6 +159,9 @@ export class ShellComponent {
   unread = signal(0);
 
   mainNav = computed<NavItem[]>(() => {
+    if (this.auth.isPlatformAdmin()) {
+      return [{ label: 'Schools', icon: 'domain', link: '/platform/schools' }];
+    }
     const items: NavItem[] = [{ label: 'Dashboard', icon: 'dashboard', link: '/', exact: true }];
     if (this.auth.hasPerm('instances.initiate')) {
       items.push({ label: 'Start a request', icon: 'add_circle', link: '/start' });

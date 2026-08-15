@@ -13,13 +13,32 @@ export interface Role {
   userCount?: number;
 }
 
+export interface SchoolRef {
+  id: string;
+  name: string;
+  slug: string;
+  active?: boolean;
+}
+
+export interface School {
+  _id: string;
+  name: string;
+  slug: string;
+  contactEmail?: string;
+  active: boolean;
+  userCount?: number;
+  createdAt: string;
+}
+
 export interface UserProfile {
   id: string;
   name: string;
   email: string;
   active: boolean;
   mustChangePassword: boolean;
+  isPlatformAdmin?: boolean;
   createdAt?: string;
+  school: SchoolRef | null;
   role: Role | null;
 }
 

@@ -2,9 +2,9 @@ import Counter from '../models/Counter.js';
 import Role from '../models/Role.js';
 import { httpError } from './errors.js';
 
-export async function nextReference(key) {
+export async function nextReference(schoolId, key) {
   const counter = await Counter.findOneAndUpdate(
-    { _id: key },
+    { _id: `${schoolId}:${key}` },
     { $inc: { seq: 1 } },
     { returnDocument: 'after', upsert: true }
   );

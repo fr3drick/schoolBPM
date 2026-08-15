@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import ProcessDefinition from '../models/ProcessDefinition.js';
 import ProcessInstance from '../models/ProcessInstance.js';
-import { requireAuth, permit, hasPerm } from '../middleware/auth.js';
+import { requireAuth, requireSchool, permit, hasPerm } from '../middleware/auth.js';
 import { buildSnapshot, nextReference, stepApproverRoleIds, validateData } from '../services/workflow.js';
 import { notifyRoles, notifyUsers } from '../services/notify.js';
 import { logAudit } from '../services/audit.js';
 import { httpError } from '../services/errors.js';
 
 const router = Router();
-router.use(requireAuth);
+router.use(requireAuth, requireSchool);
 
 function isApproverNow(user, instance) {
   return (
@@ -40,7 +40,7 @@ function viewerContext(user, instance) {
 
 router.post('/', permit('instances.initiate'), async (req, res) => {
   const { definitionId, data } = req.body || {};
-  const def = await ProcessDefinition.findById(definitionId);
+  const def = await ProcessDefinition.findOne({ _id: definitionId, school: req.user.school._id });
   if (!def || !def.active) throw httpError(400, 'Process not found or inactive');
   const allowed =
     def.initiatorRoles.length === 0 ||
@@ -49,8 +49,9 @@ router.post('/', permit('instances.initiate'), async (req, res) => {
 
   const snapshot = await buildSnapshot(def);
   const clean = validateData(snapshot.fields, data);
-  const reference = await nextReference(def.key);
+  const reference = await nextReference(req.user.school._id, def.key);
   const instance = await ProcessInstance.create({
+    school: req.user.school._id,
     reference,
     definition: def._id,
     definitionSnapshot: snapshot,
@@ -82,7 +83,10 @@ router.post('/', permit('instances.initiate'), async (req, res) => {
 });
 
 router.get('/mine', async (req, res) => {
-  const instances = await ProcessInstance.find({ initiator: req.user._id }).sort({ updatedAt: -1 });
+  const instances = await ProcessInstance.find({
+    school: req.user.school._id,
+    initiator: req.user._id,
+  }).sort({ updatedAt: -1 });
   res.json({ instances });
 });
 
@@ -90,6 +94,7 @@ router.get('/mine', async (req, res) => {
 // assigned to their role (own requests excluded — no self-approval).
 router.get('/tasks', permit('instances.act'), async (req, res) => {
   const instances = await ProcessInstance.find({
+    school: req.user.school._id,
     status: 'in_progress',
     currentApproverRoles: req.user.role._id,
     initiator: { $ne: req.user._id },
@@ -98,14 +103,14 @@ router.get('/tasks', permit('instances.act'), async (req, res) => {
 });
 
 router.get('/', permit('instances.view_all'), async (req, res) => {
-  const filter = {};
+  const filter = { school: req.user.school._id };
   if (req.query.status) filter.status = req.query.status;
   const instances = await ProcessInstance.find(filter).sort({ updatedAt: -1 }).limit(500);
   res.json({ instances });
 });
 
 router.get('/:id', async (req, res) => {
-  const instance = await ProcessInstance.findById(req.params.id);
+  const instance = await ProcessInstance.findOne({ _id: req.params.id, school: req.user.school._id });
   if (!instance) throw httpError(404, 'Request not found');
   assertCanView(req.user, instance);
   res.json({ instance, viewer: viewerContext(req.user, instance) });
@@ -117,7 +122,7 @@ router.post('/:id/action', permit('instances.act'), async (req, res) => {
   if ((action === 'reject' || action === 'return') && !String(comment).trim()) {
     throw httpError(400, 'A comment is required when rejecting or returning a request');
   }
-  const instance = await ProcessInstance.findById(req.params.id);
+  const instance = await ProcessInstance.findOne({ _id: req.params.id, school: req.user.school._id });
   if (!instance) throw httpError(404, 'Request not found');
   if (!isApproverNow(req.user, instance)) {
     throw httpError(403, 'This request is not awaiting your action');
@@ -195,7 +200,7 @@ router.post('/:id/action', permit('instances.act'), async (req, res) => {
 // Initiator fixes the data of a returned request; the approval chain restarts
 // from step 1 so every approver reviews the updated version.
 router.post('/:id/resubmit', async (req, res) => {
-  const instance = await ProcessInstance.findById(req.params.id);
+  const instance = await ProcessInstance.findOne({ _id: req.params.id, school: req.user.school._id });
   if (!instance) throw httpError(404, 'Request not found');
   if (String(instance.initiator) !== String(req.user._id)) {
     throw httpError(403, 'Only the initiator can resubmit this request');

@@ -25,6 +25,7 @@ logs/
 
 # Claude Code — keep shared launch config, ignore machine-local settings
 .claude/settings.local.json
+.claude/council-cache/
 
 # Editors
 .idea/

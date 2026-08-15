@@ -12,6 +12,13 @@ export const authGuard: CanActivateFn = (route, state) => {
   return true;
 };
 
+/** Platform console routes: platform admins only. */
+export const platformGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  return auth.isPlatformAdmin() ? true : router.createUrlTree(['/']);
+};
+
 /** Route data: { perms: ['users.manage', ...] } — any match passes. */
 export const permGuard: CanActivateFn = (route) => {
   const auth = inject(AuthService);

@@ -4,6 +4,7 @@ import User from '../models/User.js';
 export async function notifyUsers(userIds, message, instance) {
   const docs = [...new Set(userIds.map(String))].map((id) => ({
     user: id,
+    school: instance?.school ?? null,
     message,
     instance: instance?._id,
     reference: instance?.reference,
@@ -15,6 +16,7 @@ export async function notifyRoles(roleIds, message, instance, excludeUserId) {
   if (!roleIds?.length) return;
   const users = await User.find({
     role: { $in: roleIds },
+    ...(instance?.school ? { school: instance.school } : {}),
     active: true,
     ...(excludeUserId ? { _id: { $ne: excludeUserId } } : {}),
   }).select('_id');

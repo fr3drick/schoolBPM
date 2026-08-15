@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/auth.js';
+import schoolRoutes from './routes/schools.js';
 import userRoutes from './routes/users.js';
 import roleRoutes from './routes/roles.js';
 import definitionRoutes from './routes/definitions.js';
@@ -15,6 +16,7 @@ app.use(express.json());
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);
+app.use('/api/schools', schoolRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/definitions', definitionRoutes);

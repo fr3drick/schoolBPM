@@ -7,6 +7,7 @@ import {
   ProcessDefinition,
   ProcessInstance,
   Role,
+  School,
   UserProfile,
   Viewer,
 } from './models';
@@ -18,6 +19,17 @@ export class ApiService {
   // ---- auth ----
   changePassword(currentPassword: string, newPassword: string) {
     return this.http.post<{ ok: boolean }>('/api/auth/change-password', { currentPassword, newPassword });
+  }
+
+  // ---- schools (platform console) ----
+  schools() {
+    return this.http.get<{ schools: School[] }>('/api/schools');
+  }
+  createSchool(body: unknown) {
+    return this.http.post<{ school: School; admin: { email: string } }>('/api/schools', body);
+  }
+  updateSchool(id: string, body: unknown) {
+    return this.http.put<{ school: School }>(`/api/schools/${id}`, body);
   }
 
   // ---- definitions ----
