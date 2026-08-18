@@ -1,5 +1,8 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import authRoutes from './routes/auth.js';
 import schoolRoutes from './routes/schools.js';
 import userRoutes from './routes/users.js';
@@ -24,6 +27,24 @@ app.use('/api/instances', instanceRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/audit', auditRoutes);
+
+// Serve the built Angular client from the same origin, so the SPA's relative
+// /api calls need no CORS and no second web server. Skipped in dev, where the
+// directory does not exist and `ng serve` proxies /api here instead.
+const clientDir = path.resolve(
+  process.env.CLIENT_DIR ||
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public'),
+);
+if (fs.existsSync(path.join(clientDir, 'index.html'))) {
+  // index: false so the fallback below owns index.html and its cache headers;
+  // every other asset is content-hashed by the build, so it can cache forever.
+  app.use(express.static(clientDir, { index: false, maxAge: '1y' }));
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    if (req.path.startsWith('/api/')) return next();
+    res.sendFile(path.join(clientDir, 'index.html'));
+  });
+}
 
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
