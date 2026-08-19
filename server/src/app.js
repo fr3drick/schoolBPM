@@ -14,6 +14,7 @@ import dashboardRoutes from './routes/dashboard.js';
 import auditRoutes from './routes/audit.js';
 
 const app = express();
+app.disable('x-powered-by');
 app.use(cors());
 app.use(express.json());
 
@@ -53,8 +54,15 @@ app.use((err, req, res, next) => {
   if (err.name === 'ValidationError' || err.name === 'CastError') {
     return res.status(400).json({ error: err.message });
   }
+  if (err.code === 11000) {
+    const field = Object.keys(err.keyValue || {})[0] || 'field';
+    return res.status(409).json({ error: `A record with this ${field} already exists` });
+  }
   if (!err.status || err.status >= 500) console.error(err);
-  res.status(err.status || 500).json({ error: err.message || 'Server error' });
+  const status = err.status || 500;
+  res.status(status).json({
+    error: status < 500 ? (err.message || 'Client error') : 'An internal server error occurred',
+  });
 });
 
 export default app;

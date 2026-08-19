@@ -46,6 +46,8 @@ const instanceSchema = new mongoose.Schema(
 
 instanceSchema.index({ school: 1, reference: 1 }, { unique: true });
 instanceSchema.index({ school: 1, status: 1, currentApproverRoles: 1 });
-instanceSchema.index({ initiator: 1, updatedAt: -1 });
+instanceSchema.index({ school: 1, initiator: 1, updatedAt: -1 });
+instanceSchema.index({ school: 1, status: 1, updatedAt: -1 });
+instanceSchema.index({ school: 1, definition: 1 });
 
 export default mongoose.model('ProcessInstance', instanceSchema);
