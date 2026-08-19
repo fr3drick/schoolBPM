@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import Role from '../models/Role.js';
-import { requireAuth, permit } from '../middleware/auth.js';
+import { requireAuth, requireSchool, permit } from '../middleware/auth.js';
 import { logAudit } from '../services/audit.js';
 import { httpError } from '../services/errors.js';
 
