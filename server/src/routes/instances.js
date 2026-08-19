@@ -83,29 +83,47 @@ router.post('/', permit('instances.initiate'), async (req, res) => {
 });
 
 router.get('/mine', async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+  const skip = Math.max(Number(req.query.skip) || 0, 0);
   const instances = await ProcessInstance.find({
     school: req.user.school._id,
     initiator: req.user._id,
-  }).sort({ updatedAt: -1 });
+  })
+    .sort({ updatedAt: -1 })
+    .skip(skip)
+    .limit(limit);
   res.json({ instances });
 });
 
 // The caller's approval queue: in-progress requests whose current step is
 // assigned to their role (own requests excluded — no self-approval).
 router.get('/tasks', permit('instances.act'), async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+  const skip = Math.max(Number(req.query.skip) || 0, 0);
   const instances = await ProcessInstance.find({
     school: req.user.school._id,
     status: 'in_progress',
     currentApproverRoles: req.user.role._id,
     initiator: { $ne: req.user._id },
-  }).sort({ updatedAt: 1 });
+  })
+    .sort({ updatedAt: 1 })
+    .skip(skip)
+    .limit(limit);
   res.json({ instances });
 });
 
+const ALLOWED_STATUSES = ['in_progress', 'approved', 'rejected', 'returned'];
+
 router.get('/', permit('instances.view_all'), async (req, res) => {
   const filter = { school: req.user.school._id };
-  if (req.query.status) filter.status = req.query.status;
-  const instances = await ProcessInstance.find(filter).sort({ updatedAt: -1 }).limit(500);
+  if (req.query.status) {
+    const statusStr = String(req.query.status);
+    if (!ALLOWED_STATUSES.includes(statusStr)) throw httpError(400, 'Invalid status filter');
+    filter.status = statusStr;
+  }
+  const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 500);
+  const skip = Math.max(Number(req.query.skip) || 0, 0);
+  const instances = await ProcessInstance.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit);
   res.json({ instances });
 });
 
@@ -130,7 +148,7 @@ router.post('/:id/action', permit('instances.act'), async (req, res) => {
 
   const snapshot = instance.definitionSnapshot;
   const stepIndex = instance.currentStep;
-  const stepName = snapshot.steps[stepIndex].name;
+  const stepName = snapshot.steps[stepIndex]?.name || `Step ${stepIndex + 1}`;
   const entry = {
     by: req.user._id,
     byName: req.user.name,
@@ -138,68 +156,114 @@ router.post('/:id/action', permit('instances.act'), async (req, res) => {
     stepIndex,
     stepName,
     comment: String(comment).trim(),
+    action: action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'returned',
   };
+
+  let update = {};
+  let notifyNextRoles = false;
+  let nextApproverRoles = [];
+  let nextStepName = '';
 
   if (action === 'approve') {
     if (stepIndex + 1 < snapshot.steps.length) {
-      instance.currentStep = stepIndex + 1;
-      instance.currentApproverRoles = stepApproverRoleIds(snapshot, instance.currentStep);
-      instance.history.push({ ...entry, action: 'approved' });
-      await instance.save();
+      const nextStepIndex = stepIndex + 1;
+      nextApproverRoles = stepApproverRoleIds(snapshot, nextStepIndex);
+      nextStepName = snapshot.steps[nextStepIndex]?.name || `Step ${nextStepIndex + 1}`;
+      notifyNextRoles = true;
+      update = {
+        $set: {
+          currentStep: nextStepIndex,
+          currentApproverRoles: nextApproverRoles,
+        },
+        $push: { history: entry },
+      };
+    } else {
+      update = {
+        $set: {
+          status: 'approved',
+          currentApproverRoles: [],
+        },
+        $push: { history: entry },
+      };
+    }
+  } else if (action === 'reject') {
+    update = {
+      $set: {
+        status: 'rejected',
+        currentApproverRoles: [],
+      },
+      $push: { history: entry },
+    };
+  } else {
+    update = {
+      $set: {
+        status: 'returned',
+        currentApproverRoles: [],
+      },
+      $push: { history: entry },
+    };
+  }
+
+  // Atomic conditional update prevents concurrency race conditions (TOCTOU)
+  const updatedInstance = await ProcessInstance.findOneAndUpdate(
+    {
+      _id: instance._id,
+      school: req.user.school._id,
+      currentStep: stepIndex,
+      status: 'in_progress',
+    },
+    update,
+    { returnDocument: 'after' }
+  );
+
+  if (!updatedInstance) {
+    throw httpError(409, 'This request state was modified by another approver. Please reload.');
+  }
+
+  if (action === 'approve') {
+    if (notifyNextRoles) {
       await notifyRoles(
-        instance.currentApproverRoles,
-        `${instance.reference} · ${snapshot.name}: awaiting "${snapshot.steps[instance.currentStep].name}"`,
-        instance,
-        instance.initiator
+        nextApproverRoles,
+        `${updatedInstance.reference} · ${snapshot.name}: awaiting "${nextStepName}"`,
+        updatedInstance,
+        updatedInstance.initiator
       );
       await notifyUsers(
-        [instance.initiator],
-        `${instance.reference}: "${stepName}" approved by ${req.user.name}`,
-        instance
+        [updatedInstance.initiator],
+        `${updatedInstance.reference}: "${stepName}" approved by ${req.user.name}`,
+        updatedInstance
       );
     } else {
-      instance.status = 'approved';
-      instance.currentApproverRoles = [];
-      instance.history.push({ ...entry, action: 'approved' });
-      await instance.save();
       await notifyUsers(
-        [instance.initiator],
-        `${instance.reference} · ${snapshot.name}: fully approved`,
-        instance
+        [updatedInstance.initiator],
+        `${updatedInstance.reference} · ${snapshot.name}: fully approved`,
+        updatedInstance
       );
     }
   } else if (action === 'reject') {
-    instance.status = 'rejected';
-    instance.currentApproverRoles = [];
-    instance.history.push({ ...entry, action: 'rejected' });
-    await instance.save();
     await notifyUsers(
-      [instance.initiator],
-      `${instance.reference} · ${snapshot.name}: rejected at "${stepName}"`,
-      instance
+      [updatedInstance.initiator],
+      `${updatedInstance.reference} · ${snapshot.name}: rejected at "${stepName}"`,
+      updatedInstance
     );
   } else {
-    instance.status = 'returned';
-    instance.currentApproverRoles = [];
-    instance.history.push({ ...entry, action: 'returned' });
-    await instance.save();
     await notifyUsers(
-      [instance.initiator],
-      `${instance.reference} · ${snapshot.name}: returned for changes — see comment`,
-      instance
+      [updatedInstance.initiator],
+      `${updatedInstance.reference} · ${snapshot.name}: returned for changes — see comment`,
+      updatedInstance
     );
   }
 
-  logAudit(req.user, `instances.${action}`, 'instance', instance._id, {
-    reference: instance.reference,
+  logAudit(req.user, `instances.${action}`, 'instance', updatedInstance._id, {
+    reference: updatedInstance.reference,
     step: stepName,
   });
-  res.json({ instance, viewer: viewerContext(req.user, instance) });
+  res.json({ instance: updatedInstance, viewer: viewerContext(req.user, updatedInstance) });
 });
 
 // Initiator fixes the data of a returned request; the approval chain restarts
 // from step 1 so every approver reviews the updated version.
-router.post('/:id/resubmit', async (req, res) => {
+router.post('/:id/resubmit', permit('instances.initiate'), async (req, res) => {
   const instance = await ProcessInstance.findOne({ _id: req.params.id, school: req.user.school._id });
   if (!instance) throw httpError(404, 'Request not found');
   if (String(instance.initiator) !== String(req.user._id)) {
@@ -207,30 +271,59 @@ router.post('/:id/resubmit', async (req, res) => {
   }
   if (instance.status !== 'returned') throw httpError(400, 'Only returned requests can be resubmitted');
 
+  // Verify process definition is still active and initiator's current role is permitted
+  const def = await ProcessDefinition.findOne({ _id: instance.definition, school: req.user.school._id });
+  if (!def || !def.active) throw httpError(400, 'This process is no longer active and cannot be resubmitted');
+  const allowed =
+    def.initiatorRoles.length === 0 ||
+    def.initiatorRoles.some((r) => String(r) === String(req.user.role._id));
+  if (!allowed) throw httpError(403, 'Your current role is not authorized to initiate this process');
+
   const snapshot = instance.definitionSnapshot;
-  instance.data = validateData(snapshot.fields, req.body?.data);
-  instance.markModified('data');
-  instance.status = 'in_progress';
-  instance.currentStep = 0;
-  instance.currentApproverRoles = stepApproverRoleIds(snapshot, 0);
-  instance.history.push({
+  const cleanData = validateData(snapshot.fields, req.body?.data);
+  const entry = {
     action: 'resubmitted',
     by: req.user._id,
     byName: req.user.name,
     roleName: req.user.role?.name,
     stepIndex: 0,
-    stepName: snapshot.steps[0].name,
+    stepName: snapshot.steps[0]?.name || 'Step 1',
     comment: String(req.body?.comment || '').trim(),
-  });
-  await instance.save();
+  };
+
+  const initialApproverRoles = stepApproverRoleIds(snapshot, 0);
+
+  const updatedInstance = await ProcessInstance.findOneAndUpdate(
+    {
+      _id: instance._id,
+      school: req.user.school._id,
+      initiator: req.user._id,
+      status: 'returned',
+    },
+    {
+      $set: {
+        data: cleanData,
+        status: 'in_progress',
+        currentStep: 0,
+        currentApproverRoles: initialApproverRoles,
+      },
+      $push: { history: entry },
+    },
+    { returnDocument: 'after' }
+  );
+
+  if (!updatedInstance) {
+    throw httpError(409, 'Request state has changed; please refresh.');
+  }
+
   await notifyRoles(
-    instance.currentApproverRoles,
-    `${instance.reference} · ${snapshot.name}: resubmitted by ${req.user.name}, awaiting "${snapshot.steps[0].name}"`,
-    instance,
+    updatedInstance.currentApproverRoles,
+    `${updatedInstance.reference} · ${snapshot.name}: resubmitted by ${req.user.name}, awaiting "${snapshot.steps[0]?.name || 'Step 1'}"`,
+    updatedInstance,
     req.user._id
   );
-  logAudit(req.user, 'instances.resubmit', 'instance', instance._id, { reference: instance.reference });
-  res.json({ instance, viewer: viewerContext(req.user, instance) });
+  logAudit(req.user, 'instances.resubmit', 'instance', updatedInstance._id, { reference: updatedInstance.reference });
+  res.json({ instance: updatedInstance, viewer: viewerContext(req.user, updatedInstance) });
 });
 
 export default router;

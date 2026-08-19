@@ -32,4 +32,4 @@ ssh "$HOST" "set -e
 echo "==> Health check"
 sleep 5
 ssh "$HOST" "curl -fsS http://127.0.0.1:4100/api/health" && echo
-echo "Deployed: https://efeirubor.name.ng:8080"
+echo "Deployed: https://idverge.com.ng"

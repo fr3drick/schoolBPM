@@ -50,22 +50,23 @@ router.post('/', async (req, res) => {
   if (!adminName?.trim() || !adminEmail?.trim() || !adminPassword) {
     throw httpError(400, 'An initial Super Admin (name, email, password) is required');
   }
-  if (String(adminPassword).length < 8) {
-    throw httpError(400, 'Admin password must be at least 8 characters');
+  const adminPassStr = String(adminPassword);
+  if (adminPassStr.length < 8 || adminPassStr.length > 72) {
+    throw httpError(400, 'Admin password must be between 8 and 72 characters');
   }
   if (await School.findOne({ $or: [{ name: name.trim() }, { slug: slug.trim() }] })) {
     throw httpError(409, 'A school with this name or slug already exists');
   }
-  if (await User.findOne({ email: String(adminEmail).toLowerCase() })) {
+  if (await User.findOne({ email: String(adminEmail).toLowerCase().trim() })) {
     throw httpError(409, 'A user with this email already exists');
   }
 
-  const school = await School.create({ name: name.trim(), slug: slug.trim(), contactEmail });
+  const school = await School.create({ name: name.trim(), slug: slug.trim(), contactEmail: String(contactEmail).trim() });
   const roleMap = await provisionSchool(school, { seedTemplates: Boolean(seedTemplates) });
   const admin = await createSchoolAdmin(school, roleMap, {
     name: adminName.trim(),
-    email: adminEmail,
-    password: adminPassword,
+    email: String(adminEmail).toLowerCase().trim(),
+    password: adminPassStr,
   });
   logAudit(req.user, 'schools.create', 'school', school._id, { name: school.name, admin: admin.email }, school._id);
   res.status(201).json({
@@ -83,7 +84,7 @@ router.put('/:id', async (req, res) => {
     if (clash) throw httpError(409, 'A school with this name already exists');
     school.name = name.trim();
   }
-  if (contactEmail !== undefined) school.contactEmail = contactEmail;
+  if (contactEmail !== undefined) school.contactEmail = String(contactEmail).trim();
   if (active !== undefined) school.active = Boolean(active);
   await school.save();
   logAudit(req.user, 'schools.update', 'school', school._id, { name: school.name, active: school.active }, school._id);
@@ -94,14 +95,15 @@ router.put('/:id', async (req, res) => {
 // Admin) without granting the platform any access to school data.
 router.post('/:id/reset-user-password', async (req, res) => {
   const { email, password } = req.body || {};
-  if (!email || !password || String(password).length < 8) {
-    throw httpError(400, 'Email and a password of at least 8 characters are required');
+  const passStr = String(password || '');
+  if (!email || passStr.length < 8 || passStr.length > 72) {
+    throw httpError(400, 'Email and a password between 8 and 72 characters are required');
   }
   const school = await School.findById(req.params.id);
   if (!school) throw httpError(404, 'School not found');
-  const user = await User.findOne({ email: String(email).toLowerCase(), school: school._id });
+  const user = await User.findOne({ email: String(email).toLowerCase().trim(), school: school._id });
   if (!user) throw httpError(404, 'No user with this email in this school');
-  user.passwordHash = await bcrypt.hash(password, 10);
+  user.passwordHash = await bcrypt.hash(passStr, 10);
   user.mustChangePassword = true;
   await user.save();
   logAudit(req.user, 'schools.reset_user_password', 'user', user._id, { email: user.email }, school._id);
