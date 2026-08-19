@@ -17,7 +17,7 @@ import { errorMessage } from '../../core/auth.interceptor';
       <mat-card class="card">
         <div class="head">
           <mat-icon class="logo">school</mat-icon>
-          <h1>School BPM</h1>
+          <h1>IdeaVerge School BPM</h1>
           <p class="muted">Sign in to manage your school's processes</p>
         </div>
         <form [formGroup]="form" (ngSubmit)="submit()">
