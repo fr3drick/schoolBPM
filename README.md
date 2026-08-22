@@ -28,7 +28,9 @@ a new process never requires code.
   edited or deleted.
 - **Timeline & audit** — every instance keeps a full history (who, role, step, comment, when);
   admin actions land in a global audit log.
-- **Notifications** — in-app bell: approvers are notified of new tasks, initiators of decisions.
+- **Notifications** — in-app bell plus email: approvers are notified of new tasks, initiators of
+  decisions. Email goes through a durable outbox with retries, so a mail outage never blocks or
+  loses a workflow action (see [Email](#email)).
 - **Reference numbers** — each process has a key (e.g. `LR`) producing refs like `LR-0001`.
 - **Definition snapshots** — instances freeze a copy of the form + steps at submission,
   so editing a process later never corrupts old requests.
@@ -115,9 +117,11 @@ All school-scoped endpoints act on the signed-in user's school only.
 
 ```
 server/src/
-  models/        School, User, Role, ProcessDefinition, ProcessInstance, Notification, AuditLog, Counter
+  models/        School, User, Role, ProcessDefinition, ProcessInstance, Notification,
+                 EmailOutbox, AuditLog, Counter
   middleware/    JWT auth + permission checks + platform/school guards
   services/      workflow engine helpers, school provisioning, notifications, audit
+  services/mail/ transport (console|smtp|resend), templates, outbox worker
   routes/        auth, schools (platform), users, roles, definitions, instances,
                  notifications, dashboard, audit
   seed.js        platform admin + demo schools (roles, users, templates)
@@ -129,7 +133,50 @@ client/src/app/
                  process designer), audit, platform (schools console)
 ```
 
+## Email
+
+Workflow events (submitted, awaiting approval, approved, rejected, returned, resubmitted) are
+emailed alongside the in-app notification. Both are written from the same call in
+`services/notify.js`, so the two channels cannot drift.
+
+**How it works.** The workflow writes a row to the `emailoutboxes` collection in the same
+operation that creates the notification; a background worker claims due rows and sends them.
+This avoids the dual-writes problem — an SMTP call inside the request path can time out
+ambiguously, leaving an approval recorded with no mail sent. Instead there is one local write,
+then an at-least-once send with exponential backoff (1, 5, 15, 60, 180 min over 5 attempts) and
+a unique `dedupeKey` per (event, recipient, occurrence) so retries cannot duplicate a message.
+
+**Tenancy.** All mail leaves from one verified platform domain; the school's name is the
+display name and its `contactEmail` is the reply-to, so no per-school domain verification is
+needed. Mail for a suspended school is skipped at send time, not enqueue time.
+
+**Privacy.** Emails carry the reference, process name and a deep link — never the submitted
+form data, which stays behind authentication.
+
+### Configuration
+
+`MAIL_PROVIDER` selects the backend:
+
+| Value | Behaviour |
+|---|---|
+| `console` (default) | Logs a summary, sends nothing — the app runs unconfigured |
+| `smtp` | Nodemailer; use for local Mailpit or any SMTP provider |
+| `resend` | Resend HTTP API, with an idempotency key per message |
+
+For local development, run a mail catcher and set `MAIL_PROVIDER=smtp`:
+
+```bash
+docker run -d --name schoolbpm-mail -p 1025:1025 -p 8025:8025 axllent/mailpit
+```
+
+Everything sent is then visible at http://localhost:8025 and nothing leaves your machine.
+
+For production, verify a domain with Resend, then set `MAIL_PROVIDER=resend`,
+`RESEND_API_KEY`, `MAIL_FROM` (a mailbox on the verified domain), and `APP_BASE_URL` so the
+deep links resolve. See `.env.example` for the full key list and worker tuning
+(`MAIL_POLL_MS`, `MAIL_BATCH_SIZE`, `MAIL_MAX_ATTEMPTS`, `MAIL_WORKER_ENABLED`).
+
 ## Not yet included (by design, architecture allows later)
 
-File attachments, email delivery, parallel/conditional steps, SLA reminders,
-reports/exports, SSO, password-reset emails.
+File attachments, PDF export of completed approvals, forgot-password, parallel/conditional
+steps, SLA reminders, reports/exports, SSO.
