@@ -3,14 +3,32 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
+import {
+  forgotPasswordEmailLimiter,
+  forgotPasswordIpLimiter,
+  loginIpLimiter,
+  loginLimiter,
+  resetPasswordLimiter,
+} from '../middleware/rateLimit.js';
 import { logAudit } from '../services/audit.js';
 import { httpError } from '../services/errors.js';
+import { consumeToken, issueReset, TTL_MINUTES } from '../services/password-reset.js';
+import PasswordReset from '../models/PasswordReset.js';
+
+/** Every issued token carries the user's current tokenVersion. */
+function signToken(user) {
+  return jwt.sign(
+    { sub: String(user._id), tv: user.tokenVersion ?? 0 },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES || '1d' }
+  );
+}
 
 const router = Router();
 
 const DUMMY_HASH = '$2a$10$e8wY8b4G4Qc0eQd2rZ9w7eJ8uI9o0p1q2r3s4t5u6v7w8x9y0z1a2';
 
-router.post('/login', async (req, res) => {
+router.post('/login', loginIpLimiter, loginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) throw httpError(400, 'Email and password are required');
   const user = await User.findOne({ email: String(email).toLowerCase() })
@@ -25,9 +43,7 @@ router.post('/login', async (req, res) => {
   if (!user.isPlatformAdmin && (!user.school || !user.school.active)) {
     throw httpError(403, 'Your school is not active on this platform');
   }
-  const token = jwt.sign({ sub: String(user._id) }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES || '1d',
-  });
+  const token = signToken(user);
   logAudit(user, 'auth.login', 'user', user._id);
   res.json({ token, user: user.toProfile() });
 });
@@ -46,8 +62,82 @@ router.post('/change-password', requireAuth, async (req, res) => {
   }
   req.user.passwordHash = await bcrypt.hash(newPassStr, 10);
   req.user.mustChangePassword = false;
+  // Ends sessions on other devices; the caller gets a fresh token below so
+  // the tab they are working in is not logged out mid-change.
+  req.user.tokenVersion = (req.user.tokenVersion ?? 0) + 1;
   await req.user.save();
   logAudit(req.user, 'auth.change_password', 'user', req.user._id);
+  res.json({ ok: true, token: signToken(req.user) });
+});
+
+/**
+ * Always answers the same way, whether or not the address belongs to an
+ * account. Anything else turns this endpoint into a way to discover which
+ * staff emails are registered.
+ */
+router.post('/forgot-password', forgotPasswordIpLimiter, forgotPasswordEmailLimiter, async (req, res) => {
+  const { email } = req.body || {};
+  const generic = {
+    ok: true,
+    message: 'If that email belongs to an account, a reset link is on its way.',
+  };
+  if (!email) return res.json(generic);
+
+  const user = await User.findOne({ email: String(email).toLowerCase().trim() }).populate('school');
+  const eligible =
+    user && user.active && (user.isPlatformAdmin || (user.school && user.school.active));
+
+  if (eligible) {
+    try {
+      await issueReset(user, { ip: req.ip || '' });
+      logAudit(user, 'auth.forgot_password', 'user', user._id, { email: user.email });
+    } catch (err) {
+      // Never leak a failure back to the caller: it would reveal the address
+      // exists. The outbox row (or its absence) is the operational signal.
+      console.error('Failed to issue password reset:', err.message);
+    }
+  }
+  res.json(generic);
+});
+
+/** Reports whether a link is still usable, so the UI can explain before asking for a password. */
+router.get('/reset-password/:token', resetPasswordLimiter, async (req, res) => {
+  const reset = await consumeToken(req.params.token);
+  res.json({ valid: Boolean(reset), ttlMinutes: TTL_MINUTES });
+});
+
+router.post('/reset-password', resetPasswordLimiter, async (req, res) => {
+  const { token, newPassword } = req.body || {};
+  const newPassStr = String(newPassword || '');
+  if (!token) throw httpError(400, 'A reset token is required');
+  if (newPassStr.length < 8 || newPassStr.length > 72) {
+    throw httpError(400, 'New password must be between 8 and 72 characters');
+  }
+
+  const reset = await consumeToken(token);
+  // Unknown, already used and expired are deliberately indistinguishable.
+  if (!reset) throw httpError(400, 'This reset link is invalid or has expired. Please request a new one.');
+
+  const user = reset.user;
+  if (!user || !user.active || (!user.isPlatformAdmin && !user.school?.active)) {
+    throw httpError(403, 'This account is not active.');
+  }
+
+  user.passwordHash = await bcrypt.hash(newPassStr, 10);
+  user.mustChangePassword = false;
+  // The point of a reset is often that someone else has the old password.
+  // Bumping this logs every existing session out.
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+  await user.save();
+
+  reset.usedAt = new Date();
+  await reset.save();
+  await PasswordReset.updateMany(
+    { user: user._id, usedAt: null },
+    { $set: { usedAt: new Date() } }
+  );
+
+  logAudit(user, 'auth.reset_password', 'user', user._id, { email: user.email });
   res.json({ ok: true });
 });
 

@@ -4,6 +4,14 @@ import { authGuard, permGuard, platformGuard } from './core/guards';
 export const routes: Routes = [
   { path: 'login', loadComponent: () => import('./features/login/login').then((m) => m.LoginComponent) },
   {
+    path: 'forgot-password',
+    loadComponent: () => import('./features/forgot-password/forgot-password').then((m) => m.ForgotPasswordComponent),
+  },
+  {
+    path: 'reset-password/:token',
+    loadComponent: () => import('./features/reset-password/reset-password').then((m) => m.ResetPasswordComponent),
+  },
+  {
     path: 'change-password',
     canActivate: [authGuard],
     loadComponent: () => import('./features/change-password/change-password').then((m) => m.ChangePasswordComponent),

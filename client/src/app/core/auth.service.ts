@@ -18,6 +18,11 @@ export class AuthService {
     return localStorage.getItem(TOKEN_KEY);
   }
 
+  /** Replaces the stored session token, e.g. after a password change. */
+  setToken(token: string): void {
+    localStorage.setItem(TOKEN_KEY, token);
+  }
+
   /** Runs before the router starts (app initializer): restores the session. */
   async restore(): Promise<void> {
     if (!this.token()) return;

@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -11,7 +11,7 @@ import { errorMessage } from '../../core/auth.interceptor';
 
 @Component({
   selector: 'app-login',
-  imports: [ReactiveFormsModule, MatCardModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatIconModule],
+  imports: [ReactiveFormsModule, RouterLink, MatCardModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatIconModule],
   template: `
     <div class="wrap">
       <mat-card class="card">
@@ -35,6 +35,9 @@ import { errorMessage } from '../../core/auth.interceptor';
           <button mat-flat-button color="primary" class="full" type="submit" [disabled]="form.invalid || busy()">
             {{ busy() ? 'Signing in…' : 'Sign in' }}
           </button>
+          <div class="forgot">
+            <a routerLink="/forgot-password">Forgot your password?</a>
+          </div>
         </form>
       </mat-card>
     </div>
@@ -49,6 +52,9 @@ import { errorMessage } from '../../core/auth.interceptor';
     .full { width: 100%; }
     .error { color: #c62828; background: #ffebee; border-radius: 6px; padding: 10px 12px; margin-bottom: 14px; font-size: 13px; }
     button.full { height: 44px; }
+    .forgot { text-align: center; margin-top: 16px; font-size: 13px; }
+    .forgot a { color: #1565c0; text-decoration: none; }
+    .forgot a:hover { text-decoration: underline; }
   `,
 })
 export class LoginComponent {

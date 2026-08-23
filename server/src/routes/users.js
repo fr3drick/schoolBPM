@@ -82,6 +82,8 @@ router.post('/:id/reset-password', async (req, res) => {
   if (!user) throw httpError(404, 'User not found');
   user.passwordHash = await bcrypt.hash(passStr, 10);
   user.mustChangePassword = true;
+  // Kick the user out of any session opened with the old password.
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
   await user.save();
   logAudit(req.user, 'users.reset_password', 'user', user._id);
   res.json({ ok: true });

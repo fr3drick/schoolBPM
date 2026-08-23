@@ -9,6 +9,11 @@ export async function requireAuth(req, res, next) {
     const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     const user = await User.findById(payload.sub).populate('role').populate('school');
     if (!user || !user.active) return res.status(401).json({ error: 'Account is not active' });
+    // A password change or reset bumps tokenVersion, retiring tokens issued
+    // before it. Tokens predating this field carry no `tv` and match 0.
+    if ((payload.tv ?? 0) !== (user.tokenVersion ?? 0)) {
+      return res.status(401).json({ error: 'Session ended. Please sign in again.' });
+    }
     if (!user.isPlatformAdmin && (!user.school || !user.school.active)) {
       return res.status(401).json({ error: 'Your school is not active on this platform' });
     }

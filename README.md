@@ -31,6 +31,8 @@ a new process never requires code.
 - **Notifications** — in-app bell plus email: approvers are notified of new tasks, initiators of
   decisions. Email goes through a durable outbox with retries, so a mail outage never blocks or
   loses a workflow action (see [Email](#email)).
+- **Password reset** — self-service "forgot password" with single-use, hashed, expiring tokens.
+  A reset also revokes sessions already signed in (see [Passwords & sessions](#passwords--sessions)).
 - **Reference numbers** — each process has a key (e.g. `LR`) producing refs like `LR-0001`.
 - **Definition snapshots** — instances freeze a copy of the form + steps at submission,
   so editing a process later never corrupts old requests.
@@ -108,6 +110,8 @@ All endpoints are under `/api`, JWT via `Authorization: Bearer <token>`.
 All school-scoped endpoints act on the signed-in user's school only.
 
 - `POST /auth/login` · `GET /auth/me` · `POST /auth/change-password`
+- `POST /auth/forgot-password` · `GET /auth/reset-password/:token` (validity probe) ·
+  `POST /auth/reset-password`
 - `GET|POST /schools` · `PUT /schools/:id` (activate/suspend) ·
   `POST /schools/:id/reset-user-password` — platform admin only
 - `GET|POST /users` · `PUT /users/:id` · `POST /users/:id/reset-password`
@@ -125,9 +129,10 @@ All school-scoped endpoints act on the signed-in user's school only.
 ```
 server/src/
   models/        School, User, Role, ProcessDefinition, ProcessInstance, Notification,
-                 EmailOutbox, AuditLog, Counter
-  middleware/    JWT auth + permission checks + platform/school guards
-  services/      workflow engine helpers, school provisioning, notifications, audit
+                 EmailOutbox, PasswordReset, AuditLog, Counter
+  middleware/    JWT auth + permission checks + platform/school guards, rate limits
+  services/      workflow engine helpers, school provisioning, notifications, audit,
+                 password-reset tokens
   services/mail/ transport (console|smtp|resend), templates, outbox worker
   routes/        auth, schools (platform), users, roles, definitions, instances,
                  notifications, dashboard, audit, emails
@@ -136,10 +141,38 @@ server/src/
 client/src/app/
   core/          auth service, API client, interceptor, guards, models
   layout/        app shell (sidenav with tenant name, toolbar, notifications)
-  features/      login, dashboard, catalog, request form (dynamic), my requests,
+  features/      login, forgot/reset password, dashboard, catalog, request form (dynamic),
+                 my requests,
                  instance detail, approvals, all requests, admin (users, roles,
                  process designer, email delivery), audit, platform (schools console)
 ```
+
+## Passwords & sessions
+
+Staff can reset their own password from the sign-in page.
+
+**Tokens.** A reset generates 32 random bytes; only its SHA-256 hash is stored, so a leaked
+database backup cannot be used to seize accounts. Tokens are single-use, expire after
+`PASSWORD_RESET_TTL_MINUTES` (default 45), and requesting a new one invalidates any
+outstanding link. Mongo sweeps expired rows via a TTL index.
+
+**No enumeration.** `POST /auth/forgot-password` returns the same response whether or not the
+address belongs to an account — otherwise the endpoint becomes a way to discover which staff
+emails are registered. The UI mirrors this, showing the same confirmation in every case,
+including on error.
+
+**Session revocation.** Each user carries a `tokenVersion` stamped into their JWT and checked
+on every request. A password reset bumps it, so sessions opened with the old password stop
+working immediately rather than surviving until the token expires — which matters, since the
+usual reason to reset is that someone else knows the old password. Admin-initiated resets
+(school Super Admin, or the platform rescue hatch) bump it too. Changing your own password
+also bumps it but returns a fresh token, so the tab you are working in is not signed out.
+
+**Rate limits.** Sign-in counts only *failed* attempts, keyed per account, because a school's
+staff share one public IP behind NAT — a per-IP cap on all sign-ins would lock out a whole
+staff room at 8am. Forgot-password is capped per email (5/hour) and per IP (30/15min).
+Counters are in-process, so they are per API instance; behind a proxy set `TRUST_PROXY` so
+`req.ip` is the real client.
 
 ## Email
 

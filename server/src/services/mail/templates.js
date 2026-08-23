@@ -130,3 +130,69 @@ export function renderWorkflowEmail({ recipientName, schoolName, message, instan
 
   return { subject: subjectFor(event, instance), html, text };
 }
+
+/**
+ * Password reset email. Deliberately says nothing about the account beyond
+ * the recipient's first name — these land in inboxes that may not belong to
+ * the person who requested the reset.
+ */
+export function renderPasswordResetEmail({ recipientName, schoolName, url, ttlMinutes }) {
+  const firstName = String(recipientName || '').split(' ')[0] || 'there';
+  const org = schoolName || 'School BPM';
+
+  const html = `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f6f7f9;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f6f7f9;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+                 style="max-width:560px;background:#ffffff;border-radius:10px;padding:32px;
+                        font-family:Helvetica,Arial,sans-serif;color:#212b36;">
+            <tr>
+              <td>
+                <div style="font-size:13px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:#1565c0;">
+                  ${esc(org)}
+                </div>
+                <h1 style="margin:12px 0 4px;font-size:20px;font-weight:600;">Reset your password</h1>
+                <p style="font-size:15px;line-height:1.5;margin:20px 0 0;">Hi ${esc(firstName)},</p>
+                <p style="font-size:15px;line-height:1.5;margin:8px 0 0;">
+                  We received a request to reset your School BPM password. Choose a new one using
+                  the button below. This link works once and expires in ${esc(ttlMinutes)} minutes.
+                </p>
+                ${button(url, 'Choose a new password')}
+                <p style="font-size:12px;color:#637381;line-height:1.5;margin:0;">
+                  If the button does not work, paste this into your browser:<br />
+                  <span style="color:#1565c0;">${esc(url)}</span>
+                </p>
+                <hr style="border:none;border-top:1px solid #e3e7ea;margin:24px 0 12px;" />
+                <p style="font-size:12px;color:#919eab;line-height:1.5;margin:0;">
+                  If you did not ask for this, you can ignore this email — your password will not
+                  change, and the link above will expire on its own.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  const text = [
+    org,
+    '',
+    'Reset your password',
+    '',
+    `Hi ${firstName},`,
+    '',
+    'We received a request to reset your School BPM password. Open the link below to',
+    `choose a new one. It works once and expires in ${ttlMinutes} minutes.`,
+    '',
+    url,
+    '',
+    'If you did not ask for this, you can ignore this email — your password will not change.',
+  ].join('\n');
+
+  return { subject: `Reset your ${org} password`, html, text };
+}

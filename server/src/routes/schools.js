@@ -105,6 +105,7 @@ router.post('/:id/reset-user-password', async (req, res) => {
   if (!user) throw httpError(404, 'No user with this email in this school');
   user.passwordHash = await bcrypt.hash(passStr, 10);
   user.mustChangePassword = true;
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
   await user.save();
   logAudit(req.user, 'schools.reset_user_password', 'user', user._id, { email: user.email }, school._id);
   res.json({ ok: true });
