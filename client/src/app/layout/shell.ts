@@ -165,7 +165,10 @@ export class ShellComponent {
     const items: NavItem[] = [{ label: 'Dashboard', icon: 'dashboard', link: '/', exact: true }];
     if (this.auth.hasPerm('instances.initiate')) {
       items.push({ label: 'Start a request', icon: 'add_circle', link: '/start' });
-      items.push({ label: 'My requests', icon: 'list_alt', link: '/requests' });
+      // Exact: the request detail page lives at /requests/:id, and anyone with
+      // instances.view_all reaches it from All requests or Approvals. Prefix
+      // matching would highlight "My requests" for a request that is not theirs.
+      items.push({ label: 'My requests', icon: 'list_alt', link: '/requests', exact: true });
     }
     if (this.auth.hasPerm('instances.act')) {
       items.push({ label: 'Approvals', icon: 'fact_check', link: '/approvals' });
