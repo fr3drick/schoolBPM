@@ -48,9 +48,10 @@ a new process never requires code.
 | `audit.view` | Read the audit log |
 | `email.view` | View email delivery health and requeue failed messages |
 
-`email.view` is granted by default to **Super Admin**, **Owner** and **Proprietor**; like every
-permission it can be reassigned to any role from the Roles screen (except on the locked Super
-Admin role).
+`email.view` is granted by default to **Owner** and **Proprietor**, and can be reassigned to any
+role from the Roles screen. It is deliberately withheld from Super Admin, whose remit is user
+and role management only — the delivery log would otherwise reveal request references and who
+was asked to approve them.
 
 Roles seeded per school: **Super Admin** (users + roles only), **Owner**, **Proprietor**,
 **Principal**, **Admin**, **Teacher** — all editable except Super Admin. The Platform Admin
@@ -130,7 +131,7 @@ server/src/
   services/mail/ transport (console|smtp|resend), templates, outbox worker
   routes/        auth, schools (platform), users, roles, definitions, instances,
                  notifications, dashboard, audit, emails
-  scripts/       backfill-email-permission.js (grants email.view to existing schools)
+  scripts/       sync-email-permission.js (aligns email.view on existing schools)
   seed.js        platform admin + demo schools (roles, users, templates)
 client/src/app/
   core/          auth service, API client, interceptor, guards, models

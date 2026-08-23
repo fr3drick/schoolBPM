@@ -10,7 +10,7 @@ export const DEFAULT_ROLES = [
   {
     name: 'Super Admin',
     description: 'School administration only — manages users and roles, no access to processes',
-    permissions: ['users.manage', 'roles.manage', 'email.view'],
+    permissions: ['users.manage', 'roles.manage'],
     isSystem: true,
   },
   {

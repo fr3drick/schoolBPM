@@ -8,7 +8,7 @@
     "start": "node src/index.js",
     "seed": "node src/seed.js",
     "seed:fresh": "node src/seed.js --fresh",
-    "backfill:email-permission": "node src/scripts/backfill-email-permission.js"
+    "sync:email-permission": "node src/scripts/sync-email-permission.js"
   },
   "keywords": [],
   "author": "",
