@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import Role from '../models/Role.js';
 import { requireAuth, requireSchool, permit } from '../middleware/auth.js';
 import { logAudit } from '../services/audit.js';
+import { sendWelcomeEmail } from '../services/welcome.js';
 import { httpError } from '../services/errors.js';
 
 const router = Router();
@@ -39,6 +40,7 @@ router.post('/', async (req, res) => {
     mustChangePassword: Boolean(mustChangePassword),
   });
   logAudit(req.user, 'users.create', 'user', user._id, { email: user.email, role: role.name });
+  await sendWelcomeEmail(user, String(password), req.user.school);
   await user.populate('role');
   res.status(201).json({ user: user.toProfile() });
 });

@@ -5,6 +5,7 @@ import User from '../models/User.js';
 import { requireAuth, requirePlatformAdmin } from '../middleware/auth.js';
 import { createSchoolAdmin, provisionSchool } from '../services/provisioning.js';
 import { logAudit } from '../services/audit.js';
+import { sendWelcomeEmail } from '../services/welcome.js';
 import { httpError } from '../services/errors.js';
 
 const router = Router();
@@ -68,6 +69,7 @@ router.post('/', async (req, res) => {
     email: String(adminEmail).toLowerCase().trim(),
     password: adminPassStr,
   });
+  await sendWelcomeEmail(admin, adminPassStr, school);
   logAudit(req.user, 'schools.create', 'school', school._id, { name: school.name, admin: admin.email }, school._id);
   res.status(201).json({
     school,

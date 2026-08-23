@@ -20,6 +20,18 @@ import { errorMessage } from '../../core/auth.interceptor';
 
 type Action = 'approve' | 'reject' | 'return';
 
+/**
+ * Confirming resolves to an object; cancelling resolves to undefined.
+ *
+ * A bare string result cannot express that difference: an approval with no
+ * remarks is a legitimate empty comment, and a bare `mat-dialog-close`
+ * attribute also closes with '' — so a Cancel was indistinguishable from a
+ * confirmed approval and went through.
+ */
+interface ActionResult {
+  comment: string;
+}
+
 @Component({
   selector: 'app-action-dialog',
   imports: [FormsModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatButtonModule],
@@ -34,10 +46,10 @@ type Action = 'approve' | 'reject' | 'return';
       </mat-form-field>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>Cancel</button>
+      <button mat-button type="button" (click)="ref.close()">Cancel</button>
       <button mat-flat-button [color]="data.action === 'reject' ? 'warn' : 'primary'"
         [disabled]="data.action !== 'approve' && !comment.trim()"
-        (click)="ref.close(comment)">
+        (click)="ref.close({ comment })">
         {{ titles[data.action] }}
       </button>
     </mat-dialog-actions>
@@ -47,7 +59,7 @@ export class ActionDialogComponent {
   titles: Record<Action, string> = { approve: 'Approve', reject: 'Reject', return: 'Return for changes' };
   comment = '';
   constructor(
-    public ref: MatDialogRef<ActionDialogComponent, string>,
+    public ref: MatDialogRef<ActionDialogComponent, ActionResult>,
     @Inject(MAT_DIALOG_DATA) public data: { action: Action; reference: string; stepName: string }
   ) {}
 }
@@ -215,9 +227,9 @@ export class InstanceDetailComponent {
     this.dialog
       .open(ActionDialogComponent, { data: { action, reference: inst.reference, stepName }, width: '440px' })
       .afterClosed()
-      .subscribe((comment?: string) => {
-        if (comment === undefined) return;
-        this.api.act(inst._id, action, comment).subscribe({
+      .subscribe((result?: ActionResult) => {
+        if (!result) return;
+        this.api.act(inst._id, action, result.comment).subscribe({
           next: (res) => {
             this.instance.set(res.instance);
             this.viewer.set(res.viewer);
