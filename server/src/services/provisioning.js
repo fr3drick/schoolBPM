@@ -16,12 +16,12 @@ export const DEFAULT_ROLES = [
   {
     name: 'Owner',
     description: 'School owner',
-    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage', 'audit.view'],
+    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage', 'audit.view', 'email.view'],
   },
   {
     name: 'Proprietor',
     description: 'School proprietor',
-    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'audit.view'],
+    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'audit.view', 'email.view'],
   },
   {
     name: 'Principal',

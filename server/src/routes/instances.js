@@ -76,7 +76,8 @@ router.post('/', permit('instances.initiate'), async (req, res) => {
     instance.currentApproverRoles,
     `${reference} · ${snapshot.name}: new request from ${req.user.name} awaits "${snapshot.steps[0].name}"`,
     instance,
-    req.user._id
+    req.user._id,
+    { event: 'submitted' }
   );
   logAudit(req.user, 'instances.create', 'instance', instance._id, { reference });
   res.status(201).json({ instance });
@@ -226,31 +227,36 @@ router.post('/:id/action', permit('instances.act'), async (req, res) => {
         nextApproverRoles,
         `${updatedInstance.reference} · ${snapshot.name}: awaiting "${nextStepName}"`,
         updatedInstance,
-        updatedInstance.initiator
+        updatedInstance.initiator,
+        { event: 'awaiting' }
       );
       await notifyUsers(
         [updatedInstance.initiator],
         `${updatedInstance.reference}: "${stepName}" approved by ${req.user.name}`,
-        updatedInstance
+        updatedInstance,
+        { event: 'step_approved' }
       );
     } else {
       await notifyUsers(
         [updatedInstance.initiator],
         `${updatedInstance.reference} · ${snapshot.name}: fully approved`,
-        updatedInstance
+        updatedInstance,
+        { event: 'approved' }
       );
     }
   } else if (action === 'reject') {
     await notifyUsers(
       [updatedInstance.initiator],
       `${updatedInstance.reference} · ${snapshot.name}: rejected at "${stepName}"`,
-      updatedInstance
+      updatedInstance,
+      { event: 'rejected' }
     );
   } else {
     await notifyUsers(
       [updatedInstance.initiator],
       `${updatedInstance.reference} · ${snapshot.name}: returned for changes — see comment`,
-      updatedInstance
+      updatedInstance,
+      { event: 'returned' }
     );
   }
 
@@ -320,7 +326,8 @@ router.post('/:id/resubmit', permit('instances.initiate'), async (req, res) => {
     updatedInstance.currentApproverRoles,
     `${updatedInstance.reference} · ${snapshot.name}: resubmitted by ${req.user.name}, awaiting "${snapshot.steps[0]?.name || 'Step 1'}"`,
     updatedInstance,
-    req.user._id
+    req.user._id,
+    { event: 'resubmitted' }
   );
   logAudit(req.user, 'instances.resubmit', 'instance', updatedInstance._id, { reference: updatedInstance.reference });
   res.json({ instance: updatedInstance, viewer: viewerContext(req.user, updatedInstance) });
