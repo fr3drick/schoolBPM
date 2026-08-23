@@ -3,9 +3,9 @@
 | | |
 |---|---|
 | **Product** | School BPM — business process management platform for high schools |
-| **Document version** | 1.0 |
-| **Status** | Approved — MVP shipped |
-| **Date** | 11 August 2026 |
+| **Document version** | 1.1 |
+| **Status** | Approved — in active development |
+| **Date** | 23 August 2026 |
 | **Platform** | Web application (desktop-first, responsive) |
 | **Technology** | Angular 20 · Node.js/Express · MongoDB |
 
@@ -83,10 +83,14 @@ five ready-made school processes.
 - **US-10** As a super admin, I can create roles and set their permissions from a checkbox matrix.
 - **US-11** As any user, I receive in-app notifications when action is needed or a decision lands.
 - **US-12** As leadership, I can review a chronological audit log of administrative actions.
+- **US-13** As a requester, once my request is fully approved, I can download it as a PDF to file or forward as proof of approval.
+- **US-14** As a requester or approver, I can print an approved request straight from the browser without it looking like a web page.
+- **US-15** As any user, I can copy a link to a request at any stage so I can point a colleague at it in chat or email.
 
 ## 7. Functional requirements
 
-All requirements below are **shipped in v1.0**.
+FR-1 to FR-36 shipped in **v1.0**. FR-37 to FR-40 are the **v1.1** additions covered by
+§7.10; the wider v1.1 scope is listed in §11.
 
 ### 7.1 Authentication & accounts
 
@@ -169,6 +173,19 @@ All requirements below are **shipped in v1.0**.
 |---|---|---|
 | FR-36 | Administrative and workflow actions (sign-ins, user/role/process changes, decisions) recorded and viewable latest-first by `audit.view` holders | P1 |
 
+### 7.10 Request records & sharing
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-37 | A fully approved request can be downloaded as a PDF record containing the school name, reference, process, requester, submission and completion dates, every submitted field, and each approval step with approver, role, decision, comment and timestamp | P1 |
+| FR-38 | The PDF is generated on demand from the request's definition snapshot — never stored — so it always matches the record and renders historic requests with the labels and chain they were approved under. Each page carries a footer naming the exporter and generation time | P1 |
+| FR-39 | Download and print are offered **only** when a request is fully approved; both are refused server-side for any other status. Print produces the same PDF document as the download rather than a separately styled page | P1 |
+| FR-40 | A copy-link control is available on a request at **every** status, placing an absolute URL to that request on the clipboard. The link grants no access of its own — recipients still need permission to open it | P1 |
+
+Export reuses the same authorisation as viewing a request (initiator, `instances.view_all`
+holders, and the process's step approvers) and is written to the audit log, since an export
+leaves the system and governance reviewers care who took a copy.
+
 ## 8. Non-functional requirements
 
 - **Security** — bcrypt (cost 10) password hashing; HS256-signed JWTs with 24-hour expiry;
@@ -234,8 +251,9 @@ event and guest-speaker approvals, and parent-circular sign-off.
 
 | Version | Scope | Status |
 |---|---|---|
-| v1.0 | Everything in §7 — RBAC, designer, engine, queues, notifications, dashboard, audit, seed data | Shipped 11 Aug 2026 |
-| v1.1 | File attachments on requests; email notification delivery; CSV export of All requests | Planned |
+| v1.0 | FR-1 to FR-36 — RBAC, designer, engine, queues, notifications, dashboard, audit, seed data | Shipped 11 Aug 2026 |
+| v1.1 | Multi-school tenancy with platform onboarding; email notification delivery via a durable outbox; email delivery-health screen; self-service password reset with session revocation; PDF export, print and copy-link (§7.10) | In progress |
+| v1.1 (remaining) | File attachments on requests; CSV export of All requests | Planned |
 | v1.2 | Parallel approvers and conditional branches; SLA timers, reminders, escalation; approval delegation | Planned |
 | v2.0 | Reporting & analytics; SSO (Google Workspace / Microsoft); parent/student-facing request types; multi-school tenancy | Planned |
 

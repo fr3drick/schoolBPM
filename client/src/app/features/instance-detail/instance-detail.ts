@@ -11,6 +11,8 @@ import {
   MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef,
 } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { DownloadService, copyText } from '../../core/download.service';
 import { ApiService } from '../../core/api.service';
 import { ProcessInstance, Viewer } from '../../core/models';
 import { StatusChipComponent } from '../../shared/status-chip';
@@ -52,7 +54,7 @@ export class ActionDialogComponent {
 
 @Component({
   selector: 'app-instance-detail',
-  imports: [DatePipe, RouterLink, MatCardModule, MatIconModule, MatButtonModule, MatDialogModule, StatusChipComponent],
+  imports: [DatePipe, RouterLink, MatCardModule, MatIconModule, MatButtonModule, MatDialogModule, MatTooltipModule, StatusChipComponent],
   template: `
     @if (instance(); as inst) {
       <div class="page narrow">
@@ -61,6 +63,21 @@ export class ActionDialogComponent {
           <h1>{{ inst.reference }} · {{ inst.definitionSnapshot.name }}</h1>
           <app-status-chip [status]="inst.status" />
           <span class="spacer"></span>
+
+          <button mat-icon-button (click)="copyLink()" matTooltip="Copy link to this request" aria-label="Copy link">
+            <mat-icon>{{ copied() ? 'check' : 'link' }}</mat-icon>
+          </button>
+          @if (inst.status === 'approved') {
+            <button mat-icon-button (click)="print()" [disabled]="printing()"
+                    matTooltip="Print approval" aria-label="Print approval">
+              <mat-icon>print</mat-icon>
+            </button>
+            <button mat-icon-button (click)="downloadPdf()" [disabled]="downloading()"
+                    matTooltip="Download approval as PDF" aria-label="Download PDF">
+              <mat-icon>download</mat-icon>
+            </button>
+          }
+
           @if (viewer()?.canResubmit) {
             <button mat-flat-button color="primary" [routerLink]="['/requests', inst._id, 'edit']">
               <mat-icon>edit</mat-icon> Edit & resubmit
@@ -167,8 +184,13 @@ export class InstanceDetailComponent {
   private dialog = inject(MatDialog);
   private snack = inject(MatSnackBar);
 
+  private downloads = inject(DownloadService);
+
   instance = signal<ProcessInstance | null>(null);
   viewer = signal<Viewer | null>(null);
+  downloading = signal(false);
+  printing = signal(false);
+  copied = signal(false);
 
   constructor() {
     this.route.paramMap.subscribe((params) => this.load(params.get('id')!));
@@ -204,6 +226,47 @@ export class InstanceDetailComponent {
           error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 4000 }),
         });
       });
+  }
+
+  /** Shareable absolute URL; recipients still need permission to open it. */
+  async copyLink() {
+    const inst = this.instance();
+    if (!inst) return;
+    const url = `${location.origin}/requests/${inst._id}`;
+    const ok = await copyText(url);
+    if (ok) {
+      this.copied.set(true);
+      setTimeout(() => this.copied.set(false), 2000);
+      this.snack.open('Link copied to clipboard', undefined, { duration: 2000 });
+    } else {
+      this.snack.open(url, 'OK', { duration: 8000 });
+    }
+  }
+
+  async downloadPdf() {
+    const inst = this.instance();
+    if (!inst) return;
+    this.downloading.set(true);
+    try {
+      await this.downloads.save(`/api/instances/${inst._id}/pdf`, `${inst.reference}.pdf`);
+    } catch (err) {
+      this.snack.open(errorMessage(err), 'OK', { duration: 4000 });
+    } finally {
+      this.downloading.set(false);
+    }
+  }
+
+  async print() {
+    const inst = this.instance();
+    if (!inst) return;
+    this.printing.set(true);
+    try {
+      await this.downloads.print(`/api/instances/${inst._id}/pdf`);
+    } catch (err) {
+      this.snack.open(errorMessage(err), 'OK', { duration: 4000 });
+    } finally {
+      this.printing.set(false);
+    }
   }
 
   timeline(inst: ProcessInstance) {
