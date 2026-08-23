@@ -144,3 +144,26 @@ export const STATUS_LABELS: Record<InstanceStatus, string> = {
   rejected: 'Rejected',
   returned: 'Returned',
 };
+
+export type EmailStatus = 'pending' | 'sent' | 'failed' | 'skipped';
+
+export interface EmailDelivery {
+  _id: string;
+  to: string;
+  toName?: string;
+  subject: string;
+  status: EmailStatus;
+  attempts: number;
+  lastError?: string;
+  instance?: string;
+  createdAt: string;
+  sentAt?: string | null;
+  nextAttemptAt?: string;
+}
+
+export interface EmailCounts {
+  pending: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+}

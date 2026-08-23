@@ -77,6 +77,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/admin/designer/designer-edit').then((m) => m.DesignerEditComponent),
       },
       {
+        path: 'admin/emails',
+        canActivate: [permGuard],
+        data: { perms: ['email.view'] },
+        loadComponent: () => import('./features/admin/emails/emails').then((m) => m.EmailsComponent),
+      },
+      {
         path: 'audit',
         canActivate: [permGuard],
         data: { perms: ['audit.view'] },

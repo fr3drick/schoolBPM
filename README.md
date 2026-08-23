@@ -46,6 +46,11 @@ a new process never requires code.
 | `instances.act` | Approve/reject/return steps assigned to your role |
 | `instances.view_all` | See every request, not just your own |
 | `audit.view` | Read the audit log |
+| `email.view` | View email delivery health and requeue failed messages |
+
+`email.view` is granted by default to **Super Admin**, **Owner** and **Proprietor**; like every
+permission it can be reassigned to any role from the Roles screen (except on the locked Super
+Admin role).
 
 Roles seeded per school: **Super Admin** (users + roles only), **Owner**, **Proprietor**,
 **Principal**, **Admin**, **Teacher** — all editable except Super Admin. The Platform Admin
@@ -112,6 +117,7 @@ All school-scoped endpoints act on the signed-in user's school only.
   `POST /instances/:id/action` (`approve|reject|return` + comment) · `POST /instances/:id/resubmit`
 - `GET /notifications` · `POST /notifications/read-all` · `POST /notifications/:id/read`
 - `GET /dashboard/stats` · `GET /audit`
+- `GET /emails` (defaults to failed + skipped) · `POST /emails/:id/retry` — needs `email.view`
 
 ## Project layout
 
@@ -123,14 +129,15 @@ server/src/
   services/      workflow engine helpers, school provisioning, notifications, audit
   services/mail/ transport (console|smtp|resend), templates, outbox worker
   routes/        auth, schools (platform), users, roles, definitions, instances,
-                 notifications, dashboard, audit
+                 notifications, dashboard, audit, emails
+  scripts/       backfill-email-permission.js (grants email.view to existing schools)
   seed.js        platform admin + demo schools (roles, users, templates)
 client/src/app/
   core/          auth service, API client, interceptor, guards, models
   layout/        app shell (sidenav with tenant name, toolbar, notifications)
   features/      login, dashboard, catalog, request form (dynamic), my requests,
                  instance detail, approvals, all requests, admin (users, roles,
-                 process designer), audit, platform (schools console)
+                 process designer, email delivery), audit, platform (schools console)
 ```
 
 ## Email
@@ -152,6 +159,11 @@ needed. Mail for a suspended school is skipped at send time, not enqueue time.
 
 **Privacy.** Emails carry the reference, process name and a deep link — never the submitted
 form data, which stays behind authentication.
+
+**Delivery health.** *Administration → Email delivery* lists messages that failed or were
+skipped, with the recipient, subject, attempt count and provider error, and a Retry button that
+requeues one. It is school-scoped and needs `email.view`. The stored HTML body is never
+returned by the API — the screen is about delivery, not message contents.
 
 ### Configuration
 

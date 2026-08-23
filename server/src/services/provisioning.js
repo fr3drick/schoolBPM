@@ -10,18 +10,18 @@ export const DEFAULT_ROLES = [
   {
     name: 'Super Admin',
     description: 'School administration only — manages users and roles, no access to processes',
-    permissions: ['users.manage', 'roles.manage'],
+    permissions: ['users.manage', 'roles.manage', 'email.view'],
     isSystem: true,
   },
   {
     name: 'Owner',
     description: 'School owner',
-    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage', 'audit.view'],
+    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage', 'audit.view', 'email.view'],
   },
   {
     name: 'Proprietor',
     description: 'School proprietor',
-    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'audit.view'],
+    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'audit.view', 'email.view'],
   },
   {
     name: 'Principal',

@@ -6,6 +6,8 @@ import {
   PermissionDef,
   ProcessDefinition,
   ProcessInstance,
+  EmailCounts,
+  EmailDelivery,
   Role,
   School,
   UserProfile,
@@ -111,6 +113,16 @@ export class ApiService {
   }
   deleteRole(id: string) {
     return this.http.delete<{ ok: boolean }>(`/api/roles/${id}`);
+  }
+
+  // ---- email delivery ----
+  emails(status?: string) {
+    return this.http.get<{ emails: EmailDelivery[]; counts: EmailCounts }>('/api/emails', {
+      params: status ? { status } : {},
+    });
+  }
+  retryEmail(id: string) {
+    return this.http.post<{ email: EmailDelivery }>(`/api/emails/${id}/retry`, {});
   }
 
   // ---- notifications / dashboard / audit ----

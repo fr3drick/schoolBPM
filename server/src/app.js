@@ -12,6 +12,7 @@ import instanceRoutes from './routes/instances.js';
 import notificationRoutes from './routes/notifications.js';
 import dashboardRoutes from './routes/dashboard.js';
 import auditRoutes from './routes/audit.js';
+import emailRoutes from './routes/emails.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -28,6 +29,7 @@ app.use('/api/instances', instanceRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/emails', emailRoutes);
 
 // Serve the built Angular client from the same origin, so the SPA's relative
 // /api calls need no CORS and no second web server. Skipped in dev, where the

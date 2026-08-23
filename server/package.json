@@ -7,7 +7,8 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "seed": "node src/seed.js",
-    "seed:fresh": "node src/seed.js --fresh"
+    "seed:fresh": "node src/seed.js --fresh",
+    "backfill:email-permission": "node src/scripts/backfill-email-permission.js"
   },
   "keywords": [],
   "author": "",

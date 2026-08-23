@@ -181,6 +181,7 @@ export class ShellComponent {
     if (this.auth.hasPerm('users.manage')) items.push({ label: 'Users', icon: 'group', link: '/admin/users' });
     if (this.auth.hasPerm('roles.manage')) items.push({ label: 'Roles & permissions', icon: 'admin_panel_settings', link: '/admin/roles' });
     if (this.auth.hasPerm('definitions.manage')) items.push({ label: 'Process designer', icon: 'account_tree', link: '/admin/processes' });
+    if (this.auth.hasPerm('email.view')) items.push({ label: 'Email delivery', icon: 'mark_email_unread', link: '/admin/emails' });
     if (this.auth.hasPerm('audit.view')) items.push({ label: 'Audit log', icon: 'history', link: '/audit' });
     return items;
   });
