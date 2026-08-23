@@ -14,11 +14,38 @@ const RULE = '#d7dee6';
 const BRAND = '#1565c0';
 const OK = '#2e7d32';
 
+/**
+ * The zone every date in the PDF is rendered in.
+ *
+ * Without this the document is formatted in the *server's* timezone, which is
+ * UTC in production, while the same values on screen are formatted by the
+ * browser in the reader's own zone — so an approval at 09:30 in Lagos printed
+ * as 08:30. A PDF is a record someone files or forwards; it has to agree with
+ * what they were looking at when they exported it.
+ *
+ * One zone for the whole platform is a simplification: it is right for a
+ * deployment whose schools share a country, and wrong the moment one does not.
+ * The durable fix is a timezone per school, set at onboarding.
+ */
+const TIME_ZONE = resolveTimeZone(process.env.APP_TIMEZONE || 'Africa/Lagos');
+
+/** A typo in APP_TIMEZONE must not turn every PDF download into a 500. */
+function resolveTimeZone(zone) {
+  try {
+    new Date().toLocaleString('en-GB', { timeZone: zone });
+    return zone;
+  } catch {
+    console.error(`Invalid APP_TIMEZONE "${zone}" — falling back to UTC for PDF dates`);
+    return 'UTC';
+  }
+}
+
 const fmtDate = (value) =>
   value
     ? new Date(value).toLocaleString('en-GB', {
         day: 'numeric', month: 'short', year: 'numeric',
         hour: '2-digit', minute: '2-digit', hour12: false,
+        timeZone: TIME_ZONE,
       })
     : '—';
 
