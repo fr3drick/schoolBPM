@@ -60,3 +60,35 @@ export const resetPasswordLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 30,
 });
+
+/**
+ * Self-onboarding. Every school arrives through these endpoints, so they are
+ * the platform's front door for strangers: each one either sends mail to an
+ * address someone typed, or guesses at a six-digit code.
+ */
+
+/** Starting an application mails a stranger's address — cap it hard per address. */
+export const signupEmailLimiter = rateLimit({
+  ...common,
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  keyGenerator: emailKey,
+});
+
+/** One network should not be able to register schools in bulk. */
+export const signupIpLimiter = rateLimit({
+  ...common,
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+});
+
+/**
+ * Code guessing. The per-application attempt counter is the real defence —
+ * six wrong guesses burn the code — but this stops one host working through
+ * many applications at once.
+ */
+export const signupVerifyLimiter = rateLimit({
+  ...common,
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+});

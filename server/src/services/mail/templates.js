@@ -58,6 +58,77 @@ function button(url, label) {
     </table>`;
 }
 
+/** The link under a button, for clients that strip or mangle it. */
+function fallbackLink(url) {
+  return `
+                <p style="font-size:12px;color:#637381;line-height:1.5;margin:0;">
+                  If the button does not work, paste this into your browser:<br />
+                  <span style="color:#1565c0;">${esc(url)}</span>
+                </p>`;
+}
+
+/** A shaded panel of label/value pairs, e.g. credentials or a verification code. */
+function panel(rows) {
+  const cells = rows
+    .map(
+      ({ label, value, mono = false }) => `
+                    <div style="font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:#919eab;">${esc(label)}</div>
+                    <div style="${
+                      mono
+                        ? 'font-size:17px;font-family:Consolas,Menlo,monospace;letter-spacing:.5px;margin-top:2px;'
+                        : 'font-size:15px;margin:2px 0 12px;'
+                    }">${esc(value)}</div>`
+    )
+    .join('');
+  return `
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+                       style="width:100%;background:#f6f7f9;border-radius:8px;margin:20px 0;">
+                  <tr><td style="padding:16px 18px;">${cells}
+                  </td></tr>
+                </table>`;
+}
+
+/**
+ * The card every message shares: grey canvas, white 560px card, school name
+ * as an eyebrow, then the caller's body and a small print footer.
+ *
+ * `org`, `title` and `subtitle` are escaped here; `body` and `footer` are
+ * HTML the caller has already assembled with esc() around its own values.
+ */
+function page({ org, title, subtitle = '', body, footer }) {
+  return `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f6f7f9;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f6f7f9;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+                 style="max-width:560px;background:#ffffff;border-radius:10px;padding:32px;
+                        font-family:Helvetica,Arial,sans-serif;color:#212b36;">
+            <tr>
+              <td>
+                <div style="font-size:13px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:#1565c0;">
+                  ${esc(org)}
+                </div>
+                <h1 style="margin:12px 0 4px;font-size:20px;font-weight:600;">${esc(title)}</h1>${
+                  subtitle ? `\n                <div style="font-size:14px;color:#637381;">${esc(subtitle)}</div>` : ''
+                }${body}
+                <hr style="border:none;border-top:1px solid #e3e7ea;margin:24px 0 12px;" />
+                <p style="font-size:12px;color:#919eab;line-height:1.5;margin:0;">
+                  ${footer}
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+const greeting = (recipientName) => String(recipientName || '').split(' ')[0] || 'there';
+
 /**
  * @param {object} opts
  * @param {string} opts.recipientName
@@ -73,46 +144,20 @@ export function renderWorkflowEmail({ recipientName, schoolName, message, instan
   const processName = instance?.definitionSnapshot?.name || 'Request';
   const reference = instance?.reference || '';
   const label = meta.action ? 'Review the request' : 'View the request';
-  const firstName = String(recipientName || '').split(' ')[0] || 'there';
+  const firstName = greeting(recipientName);
+  const org = schoolName || 'School BPM';
 
-  const html = `<!doctype html>
-<html>
-  <body style="margin:0;padding:0;background:#f6f7f9;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f6f7f9;padding:24px 12px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
-                 style="max-width:560px;background:#ffffff;border-radius:10px;padding:32px;
-                        font-family:Helvetica,Arial,sans-serif;color:#212b36;">
-            <tr>
-              <td>
-                <div style="font-size:13px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:#1565c0;">
-                  ${esc(schoolName || 'School BPM')}
-                </div>
-                <h1 style="margin:12px 0 4px;font-size:20px;font-weight:600;">
-                  ${esc(reference)} ${esc(meta.verb)}
-                </h1>
-                <div style="font-size:14px;color:#637381;">${esc(processName)}</div>
+  const html = page({
+    org,
+    title: `${reference} ${meta.verb}`,
+    subtitle: processName,
+    body: `
                 <p style="font-size:15px;line-height:1.5;margin:20px 0 0;">Hi ${esc(firstName)},</p>
                 <p style="font-size:15px;line-height:1.5;margin:8px 0 0;">${esc(message)}</p>
-                ${button(url, label)}
-                <p style="font-size:12px;color:#637381;line-height:1.5;margin:0;">
-                  If the button does not work, paste this into your browser:<br />
-                  <span style="color:#1565c0;">${esc(url)}</span>
-                </p>
-                <hr style="border:none;border-top:1px solid #e3e7ea;margin:24px 0 12px;" />
-                <p style="font-size:12px;color:#919eab;line-height:1.5;margin:0;">
-                  You are receiving this because of your role in ${esc(schoolName || 'your school')}
-                  on School BPM. Reply to this email to reach your school office.
-                </p>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+                ${button(url, label)}${fallbackLink(url)}`,
+    footer: `You are receiving this because of your role in ${esc(schoolName || 'your school')}
+                  on School BPM. Reply to this email to reach your school office.`,
+  });
 
   const text = [
     `${schoolName || 'School BPM'}`,
@@ -137,47 +182,22 @@ export function renderWorkflowEmail({ recipientName, schoolName, message, instan
  * the person who requested the reset.
  */
 export function renderPasswordResetEmail({ recipientName, schoolName, url, ttlMinutes }) {
-  const firstName = String(recipientName || '').split(' ')[0] || 'there';
+  const firstName = greeting(recipientName);
   const org = schoolName || 'School BPM';
 
-  const html = `<!doctype html>
-<html>
-  <body style="margin:0;padding:0;background:#f6f7f9;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f6f7f9;padding:24px 12px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
-                 style="max-width:560px;background:#ffffff;border-radius:10px;padding:32px;
-                        font-family:Helvetica,Arial,sans-serif;color:#212b36;">
-            <tr>
-              <td>
-                <div style="font-size:13px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:#1565c0;">
-                  ${esc(org)}
-                </div>
-                <h1 style="margin:12px 0 4px;font-size:20px;font-weight:600;">Reset your password</h1>
+  const html = page({
+    org,
+    title: 'Reset your password',
+    body: `
                 <p style="font-size:15px;line-height:1.5;margin:20px 0 0;">Hi ${esc(firstName)},</p>
                 <p style="font-size:15px;line-height:1.5;margin:8px 0 0;">
                   We received a request to reset your School BPM password. Choose a new one using
                   the button below. This link works once and expires in ${esc(ttlMinutes)} minutes.
                 </p>
-                ${button(url, 'Choose a new password')}
-                <p style="font-size:12px;color:#637381;line-height:1.5;margin:0;">
-                  If the button does not work, paste this into your browser:<br />
-                  <span style="color:#1565c0;">${esc(url)}</span>
-                </p>
-                <hr style="border:none;border-top:1px solid #e3e7ea;margin:24px 0 12px;" />
-                <p style="font-size:12px;color:#919eab;line-height:1.5;margin:0;">
-                  If you did not ask for this, you can ignore this email — your password will not
-                  change, and the link above will expire on its own.
-                </p>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+                ${button(url, 'Choose a new password')}${fallbackLink(url)}`,
+    footer: `If you did not ask for this, you can ignore this email — your password will not
+                  change, and the link above will expire on its own.`,
+  });
 
   const text = [
     org,
@@ -206,7 +226,7 @@ export function renderPasswordResetEmail({ recipientName, schoolName, url, ttlMi
 export function renderWelcomeEmail({
   recipientName, schoolName, email, tempPassword, mustChangePassword = true,
 }) {
-  const firstName = String(recipientName || '').split(' ')[0] || 'there';
+  const firstName = greeting(recipientName);
   const org = schoolName || 'School BPM';
   const base = (process.env.APP_BASE_URL || 'http://localhost:4200').replace(/\/+$/, '');
   const url = `${base}/login`;
@@ -215,53 +235,22 @@ export function renderWelcomeEmail({
     ? 'You will be asked to choose your own password the first time you sign in.'
     : 'Please change this password once you have signed in.';
 
-  const html = `<!doctype html>
-<html>
-  <body style="margin:0;padding:0;background:#f6f7f9;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f6f7f9;padding:24px 12px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
-                 style="max-width:560px;background:#ffffff;border-radius:10px;padding:32px;
-                        font-family:Helvetica,Arial,sans-serif;color:#212b36;">
-            <tr>
-              <td>
-                <div style="font-size:13px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:#1565c0;">
-                  ${esc(org)}
-                </div>
-                <h1 style="margin:12px 0 4px;font-size:20px;font-weight:600;">Your account is ready</h1>
+  const html = page({
+    org,
+    title: 'Your account is ready',
+    body: `
                 <p style="font-size:15px;line-height:1.5;margin:20px 0 0;">Hi ${esc(firstName)},</p>
                 <p style="font-size:15px;line-height:1.5;margin:8px 0 0;">
                   An account has been created for you on School BPM for ${esc(org)}, where you can
                   raise and track requests such as leave, purchases and maintenance.
-                </p>
-                <table role="presentation" cellspacing="0" cellpadding="0" border="0"
-                       style="width:100%;background:#f6f7f9;border-radius:8px;margin:20px 0;">
-                  <tr><td style="padding:16px 18px;">
-                    <div style="font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:#919eab;">Email</div>
-                    <div style="font-size:15px;margin:2px 0 12px;">${esc(email)}</div>
-                    <div style="font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:#919eab;">Temporary password</div>
-                    <div style="font-size:17px;font-family:Consolas,Menlo,monospace;letter-spacing:.5px;margin-top:2px;">${esc(tempPassword)}</div>
-                  </td></tr>
-                </table>
+                </p>${panel([
+                  { label: 'Email', value: email },
+                  { label: 'Temporary password', value: tempPassword, mono: true },
+                ])}
                 <p style="font-size:14px;line-height:1.5;margin:0;color:#637381;">${esc(changeNote)}</p>
-                ${button(url, 'Sign in')}
-                <p style="font-size:12px;color:#637381;line-height:1.5;margin:0;">
-                  If the button does not work, paste this into your browser:<br />
-                  <span style="color:#1565c0;">${esc(url)}</span>
-                </p>
-                <hr style="border:none;border-top:1px solid #e3e7ea;margin:24px 0 12px;" />
-                <p style="font-size:12px;color:#919eab;line-height:1.5;margin:0;">
-                  If you were not expecting this, reply to this email to reach your school office.
-                </p>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+                ${button(url, 'Sign in')}${fallbackLink(url)}`,
+    footer: 'If you were not expecting this, reply to this email to reach your school office.',
+  });
 
   const text = [
     org,
@@ -283,4 +272,234 @@ export function renderWelcomeEmail({
   ].join('\n');
 
   return { subject: `Your ${org} School BPM account`, html, text };
+}
+
+/**
+ * The six-digit code that proves a self-onboarding applicant owns the address
+ * they signed up with. No school exists yet, so this one is unbranded.
+ */
+export function renderSignupOtpEmail({ recipientName, code, ttlMinutes }) {
+  const firstName = greeting(recipientName);
+
+  const html = page({
+    org: 'School BPM',
+    title: 'Verify your email address',
+    body: `
+                <p style="font-size:15px;line-height:1.5;margin:20px 0 0;">Hi ${esc(firstName)},</p>
+                <p style="font-size:15px;line-height:1.5;margin:8px 0 0;">
+                  Use this code to confirm your email address and continue registering your
+                  school on School BPM.
+                </p>
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+                       style="width:100%;background:#f6f7f9;border-radius:8px;margin:20px 0;">
+                  <tr><td align="center" style="padding:20px 18px;">
+                    <div style="font-size:32px;font-weight:700;font-family:Consolas,Menlo,monospace;letter-spacing:8px;color:#1565c0;">${esc(code)}</div>
+                    <div style="font-size:12px;color:#919eab;margin-top:8px;">Expires in ${esc(ttlMinutes)} minutes</div>
+                  </td></tr>
+                </table>
+                <p style="font-size:14px;line-height:1.5;margin:0;color:#637381;">
+                  Enter it on the page you left open. If it has expired, you can ask for a new code.
+                </p>`,
+    footer: `If you did not try to register a school on School BPM, you can ignore this email —
+                  no account is created until this code is used.`,
+  });
+
+  const text = [
+    'School BPM',
+    '',
+    'Verify your email address',
+    '',
+    `Hi ${firstName},`,
+    '',
+    'Use this code to confirm your email address and continue registering your school:',
+    '',
+    `    ${code}`,
+    '',
+    `The code expires in ${ttlMinutes} minutes. If it has expired, ask for a new one.`,
+    '',
+    'If you did not try to register a school on School BPM, you can ignore this email.',
+  ].join('\n');
+
+  return { subject: `${code} is your School BPM verification code`, html, text };
+}
+
+/** Acknowledgement to the applicant once the school details are in. */
+export function renderOnboardingSubmittedEmail({ recipientName, schoolName }) {
+  const firstName = greeting(recipientName);
+
+  const html = page({
+    org: schoolName || 'School BPM',
+    title: 'We have your registration',
+    body: `
+                <p style="font-size:15px;line-height:1.5;margin:20px 0 0;">Hi ${esc(firstName)},</p>
+                <p style="font-size:15px;line-height:1.5;margin:8px 0 0;">
+                  Thank you for registering ${esc(schoolName)} on School BPM. Our team reviews every
+                  new school before it goes live, which usually takes one business day.
+                </p>
+                <p style="font-size:15px;line-height:1.5;margin:16px 0 0;">
+                  We will email you as soon as it is approved. You can sign in with the account you
+                  created at any time to check the status — the rest of the platform unlocks once
+                  the review is complete.
+                </p>`,
+    footer: 'Reply to this email if you need to correct anything on your registration.',
+  });
+
+  const text = [
+    schoolName || 'School BPM',
+    '',
+    'We have your registration',
+    '',
+    `Hi ${firstName},`,
+    '',
+    `Thank you for registering ${schoolName} on School BPM. Our team reviews every new`,
+    'school before it goes live, which usually takes one business day.',
+    '',
+    'We will email you as soon as it is approved. You can sign in with the account you',
+    'created at any time to check the status.',
+    '',
+    'Reply to this email if you need to correct anything on your registration.',
+  ].join('\n');
+
+  return { subject: `We have your ${schoolName} registration`, html, text };
+}
+
+/** The go-live email: the school is approved and can start adding staff. */
+export function renderOnboardingApprovedEmail({ recipientName, schoolName }) {
+  const firstName = greeting(recipientName);
+  const base = (process.env.APP_BASE_URL || 'http://localhost:4200').replace(/\/+$/, '');
+  const url = `${base}/login`;
+
+  const html = page({
+    org: schoolName || 'School BPM',
+    title: `${schoolName} has been approved`,
+    body: `
+                <p style="font-size:15px;line-height:1.5;margin:20px 0 0;">Hi ${esc(firstName)},</p>
+                <p style="font-size:15px;line-height:1.5;margin:8px 0 0;">
+                  Your school is now live on School BPM. Sign in with the account you created
+                  during registration — the password has not changed.
+                </p>
+                <p style="font-size:15px;line-height:1.5;margin:16px 0 0;">
+                  As Super Admin your first job is to invite your staff: go to
+                  <b>Administration &rarr; Users</b>, add each person with the role that matches
+                  what they do, and they will receive their own sign-in details by email. Roles and
+                  their permissions are yours to edit under <b>Roles &amp; permissions</b>.
+                </p>
+                <p style="font-size:15px;line-height:1.5;margin:16px 0 0;">
+                  Your school starts with five ready-made processes — leave requests, purchase
+                  requisitions, field trips, maintenance and exam moderation — which your Owner,
+                  Principal or Admin can adapt in the process designer.
+                </p>
+                ${button(url, 'Sign in and invite your staff')}${fallbackLink(url)}`,
+    footer: `You are receiving this because you registered ${esc(schoolName || 'your school')} on
+                  School BPM.`,
+  });
+
+  const text = [
+    schoolName || 'School BPM',
+    '',
+    `${schoolName} has been approved`,
+    '',
+    `Hi ${firstName},`,
+    '',
+    'Your school is now live on School BPM. Sign in with the account you created during',
+    'registration — the password has not changed.',
+    '',
+    'As Super Admin your first job is to invite your staff: go to Administration > Users,',
+    'add each person with the role that matches what they do, and they will receive their',
+    'own sign-in details by email.',
+    '',
+    'Your school starts with five ready-made processes — leave requests, purchase',
+    'requisitions, field trips, maintenance and exam moderation.',
+    '',
+    `Sign in: ${url}`,
+    '',
+    `You are receiving this because you registered ${schoolName || 'your school'} on School BPM.`,
+  ].join('\n');
+
+  return { subject: `${schoolName} is approved on School BPM`, html, text };
+}
+
+/** Sent when the platform turns an application down; carries the reason. */
+export function renderOnboardingRejectedEmail({ recipientName, schoolName, reason }) {
+  const firstName = greeting(recipientName);
+
+  const html = page({
+    org: schoolName || 'School BPM',
+    title: 'About your School BPM registration',
+    body: `
+                <p style="font-size:15px;line-height:1.5;margin:20px 0 0;">Hi ${esc(firstName)},</p>
+                <p style="font-size:15px;line-height:1.5;margin:8px 0 0;">
+                  We were not able to approve the registration for ${esc(schoolName)} at this time.
+                </p>${
+                  reason
+                    ? `
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+                       style="width:100%;background:#f6f7f9;border-radius:8px;margin:20px 0;">
+                  <tr><td style="padding:16px 18px;">
+                    <div style="font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:#919eab;">Reason</div>
+                    <div style="font-size:15px;line-height:1.5;margin-top:4px;">${esc(reason)}</div>
+                  </td></tr>
+                </table>`
+                    : ''
+                }
+                <p style="font-size:15px;line-height:1.5;margin:16px 0 0;">
+                  If you think this is a mistake, or you can supply what is missing, reply to this
+                  email and we will take another look.
+                </p>`,
+    footer: 'Your account remains, so nothing needs to be created again if the decision changes.',
+  });
+
+  const text = [
+    schoolName || 'School BPM',
+    '',
+    'About your School BPM registration',
+    '',
+    `Hi ${firstName},`,
+    '',
+    `We were not able to approve the registration for ${schoolName} at this time.`,
+    ...(reason ? ['', `Reason: ${reason}`] : []),
+    '',
+    'If you think this is a mistake, or you can supply what is missing, reply to this',
+    'email and we will take another look.',
+  ].join('\n');
+
+  return { subject: `About your ${schoolName} registration`, html, text };
+}
+
+/**
+ * Alerts the platform team that an application is waiting. A review queue
+ * nobody is told about is a queue nobody empties.
+ */
+export function renderOnboardingReviewEmail({ schoolName, adminName, adminEmail, location, contactEmail }) {
+  const base = (process.env.APP_BASE_URL || 'http://localhost:4200').replace(/\/+$/, '');
+  const url = `${base}/platform/schools`;
+
+  const html = page({
+    org: 'School BPM · Platform',
+    title: 'A school is waiting for review',
+    subtitle: schoolName,
+    body: `${panel([
+                  { label: 'School', value: schoolName },
+                  { label: 'Registered by', value: `${adminName} (${adminEmail})` },
+                  { label: 'Contact email', value: contactEmail || '—' },
+                  { label: 'Location', value: location || '—' },
+                ])}
+                ${button(url, 'Review the application')}${fallbackLink(url)}`,
+    footer: 'You are receiving this as a platform administrator on School BPM.',
+  });
+
+  const text = [
+    'School BPM · Platform',
+    '',
+    'A school is waiting for review',
+    '',
+    `School:        ${schoolName}`,
+    `Registered by: ${adminName} (${adminEmail})`,
+    `Contact email: ${contactEmail || '—'}`,
+    `Location:      ${location || '—'}`,
+    '',
+    `Review it: ${url}`,
+  ].join('\n');
+
+  return { subject: `New school registration: ${schoolName}`, html, text };
 }

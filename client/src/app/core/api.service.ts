@@ -10,6 +10,7 @@ import {
   EmailDelivery,
   Role,
   School,
+  SchoolRegistration,
   UserProfile,
   Viewer,
 } from './models';
@@ -37,15 +38,47 @@ export class ApiService {
     return this.http.post<{ ok: boolean }>('/api/auth/reset-password', { token, newPassword });
   }
 
+  // ---- self-onboarding (public, no token) ----
+  startSignup(body: { name: string; email: string; password: string }) {
+    return this.http.post<{ ok: boolean; email: string; ttlMinutes: number; message: string }>(
+      '/api/signup',
+      body
+    );
+  }
+  resendSignupCode(email: string) {
+    return this.http.post<{ ok: boolean; ttlMinutes: number; message: string }>('/api/signup/resend', {
+      email,
+    });
+  }
+  verifySignupCode(email: string, code: string) {
+    return this.http.post<{ ok: boolean; signupToken: string; expiresInMinutes: number }>(
+      '/api/signup/verify',
+      { email, code }
+    );
+  }
+  registerSchool(signupToken: string, school: SchoolRegistration) {
+    return this.http.post<{
+      ok: boolean;
+      school: { id: string; name: string; status: string };
+      message: string;
+    }>('/api/signup/school', { signupToken, ...school });
+  }
+
   // ---- schools (platform console) ----
   schools() {
-    return this.http.get<{ schools: School[] }>('/api/schools');
+    return this.http.get<{ schools: School[]; pendingCount: number }>('/api/schools');
   }
   createSchool(body: unknown) {
     return this.http.post<{ school: School; admin: { email: string } }>('/api/schools', body);
   }
   updateSchool(id: string, body: unknown) {
     return this.http.put<{ school: School }>(`/api/schools/${id}`, body);
+  }
+  approveSchool(id: string) {
+    return this.http.post<{ school: School }>(`/api/schools/${id}/approve`, {});
+  }
+  rejectSchool(id: string, reason: string) {
+    return this.http.post<{ school: School }>(`/api/schools/${id}/reject`, { reason });
   }
 
   // ---- definitions ----

@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Product** | School BPM — business process management platform for high schools |
-| **Document version** | 1.1 |
+| **Document version** | 1.2 |
 | **Status** | Approved — in active development |
 | **Date** | 23 August 2026 |
 | **Platform** | Web application (desktop-first, responsive) |
@@ -86,11 +86,17 @@ five ready-made school processes.
 - **US-13** As a requester, once my request is fully approved, I can download it as a PDF to file or forward as proof of approval.
 - **US-14** As a requester or approver, I can print an approved request straight from the browser without it looking like a web page.
 - **US-15** As any user, I can copy a link to a request at any stage so I can point a colleague at it in chat or email.
+- **US-16** As a school owner or administrator, I can register my school myself from the sign-in page, without having to reach the platform team first.
+- **US-17** As someone registering, I prove my email address with a code before I am asked anything about my school, so a stranger cannot register a school in my name.
+- **US-18** As the Super Admin of a school that is still pending, signing in tells me my school is not approved yet and what happens next — not a broken application.
+- **US-19** As a platform administrator, I see every school waiting for review with the details it gave, and can approve it or reject it with a reason.
+- **US-20** As a newly approved Super Admin, I am told by email that my school is live and that I can start inviting staff.
 
 ## 7. Functional requirements
 
 FR-1 to FR-36 shipped in **v1.0**. FR-37 to FR-40 are the **v1.1** additions covered by
-§7.10; the wider v1.1 scope is listed in §11.
+§7.10, and FR-41 to FR-50 the **v1.2** self-onboarding scope in §7.11; the wider release
+plan is in §11.
 
 ### 7.1 Authentication & accounts
 
@@ -186,11 +192,45 @@ Export reuses the same authorisation as viewing a request (initiator, `instances
 holders, and the process's step approvers) and is written to the audit log, since an export
 leaves the system and governance reviewers care who took a copy.
 
+### 7.11 School self-onboarding
+
+Until now every school arrived by the platform team creating it in the console. FR-41 to
+FR-50 add a public route in: a school's owner or administrator registers, proves their
+address, describes the school, and waits for a decision.
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-41 | A public registration flow, linked from the sign-in page and labelled throughout as being for **school owners and administrators**, collects the applicant's full name, work email, and a password they choose themselves | P0 |
+| FR-42 | The address is proved by a six-digit numeric code emailed to it. The code **expires 60 minutes** after issue, allows at most 6 attempts before it is burned, is stored only as a hash, and can be replaced on request | P0 |
+| FR-43 | Only a verified applicant may describe their school: name, contact email, phone, street address, town/city and country are required; state/region, website and staff count are optional. The URL slug is derived from the name and de-duplicated — an administrator is never asked for one | P0 |
+| FR-44 | Submission creates the school with status `pending`, its six default roles, and the Super Admin account holding the password chosen at registration — no temporary credential is issued, so there is nothing to force a change of at first sign-in | P0 |
+| FR-45 | Starter process templates are laid down at approval, not at registration, so a school that is never approved leaves behind only the record of having asked | P1 |
+| FR-46 | The Super Admin of a pending school **can sign in and is shown that the school is awaiting approval**, with what has been done and what happens next. Every school-scoped API endpoint refuses until approval, so no user can be invited and no process started ahead of the decision | P0 |
+| FR-47 | Pending registrations appear in the platform console as a review queue, each row carrying the school's submitted details and the account that registered it — approving a school is a judgement about whether the person asking speaks for it | P0 |
+| FR-48 | Approval activates the school, seeds the starter templates, and emails its Super Admin that the school is live and that they can begin inviting staff from *Administration → Users* | P0 |
+| FR-49 | Rejection requires a reason, which is emailed to the applicant and shown when they sign in. The account and the school row survive, so a decision can be reversed without registering again | P1 |
+| FR-50 | Registration endpoints are rate-limited per email address and per IP. Abandoned registrations are swept after seven days; converted ones are kept as the record of how that school arrived | P1 |
+
+**Review state is not suspension.** A school carries a `status` of `pending`, `approved` or
+`rejected` alongside the existing `active` flag. `status` is the decision on whether the
+tenant should exist; `active` is the platform suspending one it already approved. Schools
+created in the console are `approved` from birth, which is also the default, so every school
+that predates this feature keeps working untouched.
+
+**On address enumeration.** Unlike `POST /auth/forgot-password`, registration says plainly
+when an address already has an account. A signup form that answers "check your email" for an
+address that will never receive a code traps the honest majority — someone who forgot they
+already have an account — and the code step that follows makes the pretence impossible to
+sustain. The rate limits in FR-50 are what stop the endpoint becoming a bulk address oracle.
+
 ## 8. Non-functional requirements
 
 - **Security** — bcrypt (cost 10) password hashing; HS256-signed JWTs with 24-hour expiry;
   permissions enforced by middleware on every route; the client is never trusted for
-  authorisation; role changes take effect on the next request.
+  authorisation; role changes take effect on the next request. Signup codes and reset tokens
+  are stored as SHA-256 hashes and never in the clear; the public registration endpoints are
+  rate-limited per address and per IP, and a verification code is burned after six wrong
+  guesses.
 - **Data integrity** — definition snapshots on every request; atomic reference counters;
   deletion blocked for referenced roles/processes; deactivation instead of user deletion.
 - **Usability** — any process startable in ≤ 3 clicks from the dashboard; dynamic forms with
@@ -209,13 +249,17 @@ leaves the system and governance reviewers care who took a copy.
 | REST API | Node.js + Express | Authentication, RBAC middleware, workflow engine, validation, notifications, audit |
 | Database | MongoDB (Mongoose) | Documents for users, roles, definitions, requests, notifications, audit, counters |
 
-**Collections:** `users`, `roles`, `processdefinitions`, `processinstances` (definition
-snapshot, form data, current step, current approver roles, history), `notifications`,
-`auditlogs`, `counters`.
+**Collections:** `schools` (name, slug, contact details, review `status`, `active`),
+`schoolsignups` (a registration in progress: hashed password, hashed verification code and
+its expiry, hashed step token), `users`, `roles`, `processdefinitions`, `processinstances`
+(definition snapshot, form data, current step, current approver roles, history),
+`notifications`, `emailoutboxes`, `passwordresets`, `auditlogs`, `counters`.
 
-**API surface:** `/api/auth`, `/api/users`, `/api/roles` (+ permission catalogue),
+**API surface:** `/api/auth`, `/api/signup` (+ `/verify`, `/resend`, `/school` — the only
+unauthenticated write path besides sign-in and password reset), `/api/schools` (+ `/:id/approve`,
+`/:id/reject` — platform admin only), `/api/users`, `/api/roles` (+ permission catalogue),
 `/api/definitions`, `/api/instances` (+ `/mine`, `/tasks`, `/:id/action`, `/:id/resubmit`),
-`/api/notifications`, `/api/dashboard/stats`, `/api/audit`.
+`/api/notifications`, `/api/emails`, `/api/dashboard/stats`, `/api/audit`.
 
 ## 10. Default configuration (seed)
 
@@ -254,8 +298,9 @@ event and guest-speaker approvals, and parent-circular sign-off.
 | v1.0 | FR-1 to FR-36 — RBAC, designer, engine, queues, notifications, dashboard, audit, seed data | Shipped 11 Aug 2026 |
 | v1.1 | Multi-school tenancy with platform onboarding; email notification delivery via a durable outbox; email delivery-health screen; self-service password reset with session revocation; PDF export, print and copy-link (§7.10) | In progress |
 | v1.1 (remaining) | File attachments on requests; CSV export of All requests | Planned |
-| v1.2 | Parallel approvers and conditional branches; SLA timers, reminders, escalation; approval delegation | Planned |
-| v2.0 | Reporting & analytics; SSO (Google Workspace / Microsoft); parent/student-facing request types; multi-school tenancy | Planned |
+| v1.2 | School self-onboarding: public registration for owners/administrators, email verification by expiring OTP, platform review queue with approve/reject (FR-41 to FR-50, §7.11) | In progress |
+| v1.3 | Parallel approvers and conditional branches; SLA timers, reminders, escalation; approval delegation | Planned |
+| v2.0 | Reporting & analytics; SSO (Google Workspace / Microsoft); parent/student-facing request types | Planned |
 
 ## 12. Risks & mitigations
 
@@ -266,6 +311,8 @@ event and guest-speaker approvals, and parent-circular sign-off.
 | Single-approver bottleneck when someone is away | High | Medium | Multiple roles per step supported today; delegation and escalation in v1.2 |
 | Notifications missed (in-app only) | Medium | Medium | Email delivery scheduled for v1.1 |
 | Data loss on self-hosted MongoDB | Low | High | Documented backup guidance; managed Atlas as the recommended option |
+| Bogus or duplicate schools registered through public signup | Medium | Medium | Nothing is live before a human approves it; email ownership proved by OTP; duplicate school names refused case-insensitively; rate limits per address and per IP |
+| Review queue not watched, leaving real schools waiting | Medium | High | Every platform administrator is emailed on submission, and the console opens on the queue with a count |
 
 ## 13. Open questions
 
@@ -273,6 +320,9 @@ event and guest-speaker approvals, and parent-circular sign-off.
 2. Retention policy for completed requests and audit entries — how long, and who may purge?
 3. Should approvers ever be allowed to amend request data, or only initiators (current behaviour)?
 4. Per-school branding/white-labelling — needed for v1.x?
+5. What turnaround should we commit to for reviewing a registration, and who is on the rota?
+6. Should an approved school be able to invite a second Super Admin, or does the platform
+   remain the only route to one?
 
 ## Appendix A — Demo environment
 

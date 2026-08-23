@@ -55,6 +55,23 @@ export class AuthService {
     return this.user()?.isPlatformAdmin ?? false;
   }
 
+  /**
+   * True while the signed-in user's school is pending or was rejected.
+   * Platform staff hold no school, so they are never in this state, and a
+   * school predating self-onboarding reports no status at all — treat the
+   * absence as approved rather than locking existing tenants out.
+   */
+  schoolAwaitingReview(): boolean {
+    const status = this.user()?.school?.status;
+    return Boolean(status) && status !== 'approved';
+  }
+
+  /** Re-reads the profile, e.g. to notice an approval that landed since sign-in. */
+  async refresh(): Promise<void> {
+    const res = await firstValueFrom(this.http.get<{ user: UserProfile }>('/api/auth/me'));
+    this.user.set(res.user);
+  }
+
   hasPerm(perm: string): boolean {
     return this.user()?.role?.permissions?.includes(perm) ?? false;
   }

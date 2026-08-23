@@ -13,11 +13,17 @@ export interface Role {
   userCount?: number;
 }
 
+/** Review state of a tenant, distinct from `active` (which is suspension). */
+export type SchoolStatus = 'pending' | 'approved' | 'rejected';
+
 export interface SchoolRef {
   id: string;
   name: string;
   slug: string;
   active?: boolean;
+  status?: SchoolStatus;
+  rejectionReason?: string;
+  submittedAt?: string | null;
 }
 
 export interface School {
@@ -25,9 +31,36 @@ export interface School {
   name: string;
   slug: string;
   contactEmail?: string;
+  contactPhone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  website?: string;
+  staffCount?: number | null;
+  status: SchoolStatus;
+  rejectionReason?: string;
+  selfSignup?: boolean;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
   active: boolean;
   userCount?: number;
   createdAt: string;
+  /** The Super Admin who registered or was provisioned for the school. */
+  admin?: { name: string; email: string } | null;
+}
+
+/** What a self-onboarding school tells us about itself. */
+export interface SchoolRegistration {
+  name: string;
+  contactEmail: string;
+  contactPhone: string;
+  address: string;
+  city: string;
+  state: string;
+  country: string;
+  website: string;
+  staffCount: number | null;
 }
 
 export interface UserProfile {
