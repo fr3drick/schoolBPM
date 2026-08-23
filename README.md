@@ -12,7 +12,8 @@ a new process never requires code.
 
 - **Multi-school tenancy** — a Platform Admin onboards schools from a console (school +
   its first Super Admin + default roles + optional starter templates) and can suspend or
-  reactivate a school. Every school-scoped record carries a `school` reference and every
+  reactivate a school. Schools can also [register themselves](#self-onboarding).
+  Every school-scoped record carries a `school` reference and every
   query is tenant-filtered; role names, process names/keys, and reference counters are
   unique *per school* (two schools can both have `LR-0001`). Platform staff hold no school
   role, so they can never see any school's data.
@@ -33,6 +34,10 @@ a new process never requires code.
   loses a workflow action (see [Email](#email)).
 - **Password reset** — self-service "forgot password" with single-use, hashed, expiring tokens.
   A reset also revokes sessions already signed in (see [Passwords & sessions](#passwords--sessions)).
+- **Self-onboarding** — a school owner or administrator registers their own school from the
+  sign-in page, verifies their email with a code that expires in an hour, then describes the
+  school. It lands in the platform console as a pending review; approval emails them that the
+  school is live and they can start inviting staff (see [Self-onboarding](#self-onboarding)).
 - **Reference numbers** — each process has a key (e.g. `LR`) producing refs like `LR-0001`.
 - **Definition snapshots** — instances freeze a copy of the form + steps at submission,
   so editing a process later never corrupts old requests.
@@ -112,7 +117,10 @@ All school-scoped endpoints act on the signed-in user's school only.
 - `POST /auth/login` · `GET /auth/me` · `POST /auth/change-password`
 - `POST /auth/forgot-password` · `GET /auth/reset-password/:token` (validity probe) ·
   `POST /auth/reset-password`
+- `POST /signup` · `POST /signup/verify` · `POST /signup/resend` · `POST /signup/school` —
+  public, no token
 - `GET|POST /schools` · `PUT /schools/:id` (activate/suspend) ·
+  `POST /schools/:id/approve` · `POST /schools/:id/reject` ·
   `POST /schools/:id/reset-user-password` — platform admin only
 - `GET|POST /users` · `PUT /users/:id` · `POST /users/:id/reset-password`
 - `GET|POST /roles` · `GET /roles/permissions` · `PUT|DELETE /roles/:id`
@@ -128,21 +136,21 @@ All school-scoped endpoints act on the signed-in user's school only.
 
 ```
 server/src/
-  models/        School, User, Role, ProcessDefinition, ProcessInstance, Notification,
-                 EmailOutbox, PasswordReset, AuditLog, Counter
+  models/        School, SchoolSignup, User, Role, ProcessDefinition, ProcessInstance,
+                 Notification, EmailOutbox, PasswordReset, AuditLog, Counter
   middleware/    JWT auth + permission checks + platform/school guards, rate limits
   services/      workflow engine helpers, school provisioning, notifications, audit,
-                 password-reset tokens
+                 password-reset tokens, signup OTPs, onboarding review mail
   services/mail/ transport (console|smtp|resend), templates, outbox worker
-  routes/        auth, schools (platform), users, roles, definitions, instances,
-                 notifications, dashboard, audit, emails
+  routes/        auth, signup (public), schools (platform), users, roles, definitions,
+                 instances, notifications, dashboard, audit, emails
   scripts/       sync-email-permission.js (aligns email.view on existing schools)
   seed.js        platform admin + demo schools (roles, users, templates)
 client/src/app/
   core/          auth service, API client, interceptor, guards, models
   layout/        app shell (sidenav with tenant name, toolbar, notifications)
-  features/      login, forgot/reset password, dashboard, catalog, request form (dynamic),
-                 my requests,
+  features/      login, signup, pending approval, forgot/reset password, dashboard, catalog,
+                 request form (dynamic), my requests,
                  instance detail, approvals, all requests, admin (users, roles,
                  process designer, email delivery), audit, platform (schools console)
 ```
@@ -173,6 +181,48 @@ staff share one public IP behind NAT — a per-IP cap on all sign-ins would lock
 staff room at 8am. Forgot-password is capped per email (5/hour) and per IP (30/15min).
 Counters are in-process, so they are per API instance; behind a proxy set `TRUST_PROXY` so
 `req.ip` is the real client.
+
+## Self-onboarding
+
+A school does not have to wait for the platform team to create it. *Register your school* on
+the sign-in page — labelled for **school owners and administrators**, because staff accounts
+are created by their own school — walks through three steps:
+
+1. **Your details.** Name, work email, and a password the applicant chooses. This becomes the
+   school's Super Admin account.
+2. **Verify email.** A six-digit code is emailed and must be entered to continue. It expires
+   after `SIGNUP_OTP_TTL_MINUTES` (default 60), survives at most
+   `SIGNUP_OTP_MAX_ATTEMPTS` (default 6) wrong guesses, and can be replaced on request.
+3. **Your school.** Name, contact email, phone, address, city and country, plus optional
+   state, website and staff count. The slug is derived from the name — nobody is asked for one.
+
+Submitting creates the school with `status: 'pending'`, its six default roles, and the Super
+Admin account. It then appears in *Platform console → Schools* under **Pending review**, with
+the details supplied and the account that registered it.
+
+**Nothing is live before a human says so.** A pending school's Super Admin can sign in — they
+are shown where their registration has got to — but `requireAuth` refuses every school-scoped
+endpoint until approval, so no users can be invited and no process started. **Approving**
+activates the school, lays down the five starter process templates, and emails the Super Admin
+that they can begin adding staff. **Rejecting** requires a reason, which is emailed and shown
+at sign-in; the account survives so the decision can be reversed without registering again.
+
+`status` is not `active`. `status` is the decision on whether the tenant should exist at all;
+`active` is the platform suspending one it already approved. Schools created from the console
+are `approved` by default, so everything that predates this feature is unaffected — including
+rows written before the field existed, which Mongoose hydrates to `approved`.
+
+Codes are stored as SHA-256 hashes, never in the clear, and the chosen password reaches the
+`users` collection as the same bcrypt hash it was written with — a self-registered Super Admin
+is never issued a temporary credential, so there is nothing to force a change of at first
+sign-in. Abandoned registrations are swept by a TTL index after seven days; converted ones are
+kept as the record of how that school arrived.
+
+Unlike forgot-password, registration says plainly when an email already has an account. A form
+that answers "check your email" for an address that will never receive a code mainly traps
+people who forgot they already have an account, and the code step makes the pretence
+unsustainable anyway; the rate limits are what keep the endpoint from becoming an address
+oracle.
 
 ## Email
 
@@ -224,5 +274,4 @@ deep links resolve. See `.env.example` for the full key list and worker tuning
 
 ## Not yet included (by design, architecture allows later)
 
-File attachments, PDF export of completed approvals, forgot-password, parallel/conditional
-steps, SLA reminders, reports/exports, SSO.
+File attachments, parallel/conditional steps, SLA reminders, reports/exports, SSO.

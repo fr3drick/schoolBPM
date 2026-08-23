@@ -1,8 +1,18 @@
 import { Routes } from '@angular/router';
-import { authGuard, permGuard, platformGuard } from './core/guards';
+import { authGuard, awaitingReviewGuard, permGuard, platformGuard } from './core/guards';
 
 export const routes: Routes = [
   { path: 'login', loadComponent: () => import('./features/login/login').then((m) => m.LoginComponent) },
+  {
+    path: 'signup',
+    loadComponent: () => import('./features/signup/signup').then((m) => m.SignupComponent),
+  },
+  {
+    path: 'pending-approval',
+    canActivate: [authGuard, awaitingReviewGuard],
+    loadComponent: () =>
+      import('./features/pending-approval/pending-approval').then((m) => m.PendingApprovalComponent),
+  },
   {
     path: 'forgot-password',
     loadComponent: () => import('./features/forgot-password/forgot-password').then((m) => m.ForgotPasswordComponent),

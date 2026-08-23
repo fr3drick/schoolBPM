@@ -39,6 +39,16 @@ import { errorMessage } from '../../core/auth.interceptor';
             <a routerLink="/forgot-password">Forgot your password?</a>
           </div>
         </form>
+
+        <div class="divider"><span>New to School BPM?</span></div>
+        <a mat-stroked-button color="primary" class="full register" routerLink="/signup">
+          <mat-icon>add_business</mat-icon>
+          Register your school
+        </a>
+        <p class="register-note">
+          For school owners and administrators setting up a new school. Teachers and other
+          staff are added by their own school — ask your administrator for an invite.
+        </p>
       </mat-card>
     </div>
   `,
@@ -55,6 +65,10 @@ import { errorMessage } from '../../core/auth.interceptor';
     .forgot { text-align: center; margin-top: 16px; font-size: 13px; }
     .forgot a { color: #1565c0; text-decoration: none; }
     .forgot a:hover { text-decoration: underline; }
+    .divider { display: flex; align-items: center; gap: 12px; margin: 22px 0 16px; color: #90a4ae; font-size: 12px; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e0e4e8; }
+    a.register { height: 44px; }
+    .register-note { font-size: 12px; color: #78909c; line-height: 1.5; margin-top: 12px; text-align: center; }
   `,
 })
 export class LoginComponent {
@@ -77,7 +91,13 @@ export class LoginComponent {
     const { email, password } = this.form.getRawValue();
     this.auth.login(email, password).subscribe({
       next: (res) => {
-        this.router.navigate([res.user.mustChangePassword ? '/change-password' : '/']);
+        const school = res.user.school;
+        // A school still under review (or turned down) has no app to show —
+        // the guard would bounce them anyway, so go straight there.
+        const pending = Boolean(school?.status) && school!.status !== 'approved';
+        this.router.navigate([
+          res.user.mustChangePassword ? '/change-password' : pending ? '/pending-approval' : '/',
+        ]);
       },
       error: (err) => {
         this.error.set(errorMessage(err));

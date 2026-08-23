@@ -42,7 +42,17 @@ userSchema.methods.toProfile = function () {
     createdAt: this.createdAt,
     school:
       school && school.name
-        ? { id: school._id, name: school.name, slug: school.slug, active: school.active }
+        ? {
+            id: school._id,
+            name: school.name,
+            slug: school.slug,
+            active: school.active,
+            // The client needs these to explain a school still awaiting
+            // review, or one that was turned down.
+            status: school.status,
+            rejectionReason: school.rejectionReason || '',
+            submittedAt: school.submittedAt,
+          }
         : school,
     role:
       role && role.name

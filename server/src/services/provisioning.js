@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import Role from '../models/Role.js';
+import School from '../models/School.js';
 import User from '../models/User.js';
 import ProcessDefinition from '../models/ProcessDefinition.js';
 
@@ -148,13 +149,47 @@ export async function provisionSchool(school, { seedTemplates = true } = {}) {
   return roleMap;
 }
 
-export async function createSchoolAdmin(school, roleMap, { name, email, password, mustChangePassword = true }) {
+/**
+ * Creates a school's Super Admin.
+ *
+ * Takes either a plaintext `password` (the platform console, which invents a
+ * temporary one) or a ready `passwordHash` (self-signup, where the applicant
+ * chose their own password before the school existed and there is nothing to
+ * force them to change).
+ */
+export async function createSchoolAdmin(
+  school,
+  roleMap,
+  { name, email, password, passwordHash, mustChangePassword = true }
+) {
   return User.create({
     name,
     email,
     school: school._id,
     role: roleMap['Super Admin']._id,
-    passwordHash: await bcrypt.hash(password, 10),
+    passwordHash: passwordHash ?? (await bcrypt.hash(password, 10)),
     mustChangePassword,
   });
+}
+
+/**
+ * Turns a school name into a free slug: "St. Mary's College" -> st-marys-college,
+ * with a numeric suffix if that is taken. Self-signup derives it rather than
+ * asking — "slug" is not a word a head teacher should have to meet.
+ */
+export async function uniqueSlug(name) {
+  const base =
+    String(name)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40)
+      .replace(/-+$/, '') || 'school';
+  for (let n = 1; n < 100; n += 1) {
+    const candidate = n === 1 ? base : `${base}-${n}`;
+    if (!(await School.findOne({ slug: candidate }))) return candidate;
+  }
+  // A hundred schools with one name is not a naming clash, it is a bug or an
+  // attack; either way the caller should hear about it rather than guess on.
+  throw new Error('Could not derive a unique slug for this school name');
 }
