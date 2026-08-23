@@ -1,0 +1,12 @@
+{
+  "name": "schoolbpm-docs",
+  "private": true,
+  "type": "module",
+  "description": "Builds the Word export of the PRD from PRD.md",
+  "scripts": {
+    "build": "node build-prd.mjs"
+  },
+  "dependencies": {
+    "docx": "^9.0.0"
+  }
+}

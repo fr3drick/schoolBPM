@@ -4,6 +4,8 @@ import ProcessInstance from '../models/ProcessInstance.js';
 import { requireAuth, requireSchool, permit, hasPerm } from '../middleware/auth.js';
 import { buildSnapshot, nextReference, stepApproverRoleIds, validateData } from '../services/workflow.js';
 import { notifyRoles, notifyUsers } from '../services/notify.js';
+import School from '../models/School.js';
+import { buildRequestPdf } from '../services/request-pdf.js';
 import { logAudit } from '../services/audit.js';
 import { httpError } from '../services/errors.js';
 
@@ -133,6 +135,34 @@ router.get('/:id', async (req, res) => {
   if (!instance) throw httpError(404, 'Request not found');
   assertCanView(req.user, instance);
   res.json({ instance, viewer: viewerContext(req.user, instance) });
+});
+
+/**
+ * Downloads the request as a PDF record.
+ *
+ * Restricted to fully approved requests: the document is a record of a
+ * completed approval, and an in-flight one would misrepresent itself on
+ * paper once printed and filed. Generated on demand rather than stored,
+ * since it is entirely derivable from the instance.
+ */
+router.get('/:id/pdf', async (req, res) => {
+  const instance = await ProcessInstance.findOne({ _id: req.params.id, school: req.user.school._id });
+  if (!instance) throw httpError(404, 'Request not found');
+  assertCanView(req.user, instance);
+  if (instance.status !== 'approved') {
+    throw httpError(400, 'Only fully approved requests can be downloaded as PDF');
+  }
+
+  const school = await School.findById(instance.school).select('name');
+  const filename = `${instance.reference || 'request'}.pdf`;
+
+  res.setHeader('Content-Type', 'application/pdf');
+  // Quoted and stripped of anything that could break the header.
+  res.setHeader('Content-Disposition', `attachment; filename="${filename.replace(/["\\\r\n]/g, '')}"`);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
+  logAudit(req.user, 'instances.export_pdf', 'instance', instance._id, { reference: instance.reference });
+  buildRequestPdf(instance, school?.name || '', req.user).pipe(res);
 });
 
 router.post('/:id/action', permit('instances.act'), async (req, res) => {
