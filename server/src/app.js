@@ -16,6 +16,10 @@ import emailRoutes from './routes/emails.js';
 
 const app = express();
 app.disable('x-powered-by');
+// Behind a proxy or load balancer, set TRUST_PROXY (e.g. 1, or a subnet) so
+// req.ip is the client address rather than the proxy's — rate limits are
+// keyed on it. Left off by default, which is correct for direct exposure.
+if (process.env.TRUST_PROXY) app.set('trust proxy', process.env.TRUST_PROXY);
 app.use(cors());
 app.use(express.json());
 

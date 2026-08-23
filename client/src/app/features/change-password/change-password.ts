@@ -88,7 +88,10 @@ export class ChangePasswordComponent {
     this.busy.set(true);
     this.error.set('');
     this.api.changePassword(current, next).subscribe({
-      next: () => {
+      next: (res) => {
+        // The server retires older tokens on a password change; adopt the
+        // fresh one so this tab is not signed out by its own request.
+        if (res.token) this.auth.setToken(res.token);
         const user = this.auth.user();
         if (user) this.auth.user.set({ ...user, mustChangePassword: false });
         this.snack.open('Password updated', 'OK', { duration: 3000 });

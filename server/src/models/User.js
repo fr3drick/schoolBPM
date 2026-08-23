@@ -21,6 +21,10 @@ const userSchema = new mongoose.Schema(
     },
     active: { type: Boolean, default: true },
     mustChangePassword: { type: Boolean, default: false },
+    // Stamped into every JWT. Bumping it invalidates tokens already issued,
+    // so a password change or reset ends sessions elsewhere instead of
+    // leaving a compromised one alive until it expires.
+    tokenVersion: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

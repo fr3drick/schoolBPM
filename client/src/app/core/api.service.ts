@@ -20,7 +20,21 @@ export class ApiService {
 
   // ---- auth ----
   changePassword(currentPassword: string, newPassword: string) {
-    return this.http.post<{ ok: boolean }>('/api/auth/change-password', { currentPassword, newPassword });
+    return this.http.post<{ ok: boolean; token?: string }>('/api/auth/change-password', {
+      currentPassword,
+      newPassword,
+    });
+  }
+  forgotPassword(email: string) {
+    return this.http.post<{ ok: boolean; message: string }>('/api/auth/forgot-password', { email });
+  }
+  checkResetToken(token: string) {
+    return this.http.get<{ valid: boolean; ttlMinutes: number }>(
+      `/api/auth/reset-password/${encodeURIComponent(token)}`
+    );
+  }
+  completePasswordReset(token: string, newPassword: string) {
+    return this.http.post<{ ok: boolean }>('/api/auth/reset-password', { token, newPassword });
   }
 
   // ---- schools (platform console) ----
