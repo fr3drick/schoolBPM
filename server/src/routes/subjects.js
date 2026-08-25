@@ -18,7 +18,13 @@ function clean(body) {
   const code = String(body?.code || '').trim().toUpperCase();
   if (name.length < 2 || name.length > 80) throw httpError(400, 'Subject name must be 2–80 characters');
   if (code && !/^[A-Z0-9]{2,10}$/.test(code)) throw httpError(400, 'Code must be 2–10 letters or digits');
-  return { name, code, active: body?.active === undefined ? true : Boolean(body.active) };
+  // undefined, not '': the unique index covers codes that exist, so a blank
+  // one has to be absent from the document rather than present and empty.
+  return {
+    name,
+    code: code || undefined,
+    active: body?.active === undefined ? true : Boolean(body.active),
+  };
 }
 
 router.post('/', permit('subjects.manage'), async (req, res) => {
@@ -31,7 +37,11 @@ router.post('/', permit('subjects.manage'), async (req, res) => {
 router.put('/:id', permit('subjects.manage'), async (req, res) => {
   const subject = await Subject.findOne({ _id: req.params.id, school: req.user.school._id });
   if (!subject) throw httpError(404, 'Subject not found');
-  Object.assign(subject, clean(req.body));
+  const data = clean(req.body);
+  Object.assign(subject, data);
+  // Assigning undefined is a no-op in Mongoose, so clearing a code has to be
+  // an explicit unset or the old one would survive the edit.
+  if (data.code === undefined) subject.set('code', undefined, { strict: false });
   await subject.save();
   logAudit(req.user, 'subjects.update', 'subject', subject._id, { name: subject.name });
   res.json({ subject });

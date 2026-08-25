@@ -227,6 +227,12 @@ type SchoolTab = 'pending' | 'approved' | 'rejected' | 'all';
               Requires {{ nameOf(m.requires) }}
             </div>
           }
+          @if (selected.has(m.key) && cascadeFrom(m.key); as cascade) {
+            <div class="cascade">
+              <mat-icon inline>warning</mat-icon>
+              Switching this off also switches off {{ cascade }}
+            </div>
+          }
         </div>
       }
       @if (error) { <div class="error">{{ error }}</div> }
@@ -243,6 +249,8 @@ type SchoolTab = 'pending' | 'approved' | 'rejected' | 'all';
     .desc { font-size: 13px; color: #637381; margin: 4px 0 0 32px; line-height: 1.45; }
     .requires { font-size: 12px; color: #b26a00; margin: 6px 0 0 32px; }
     .requires mat-icon { font-size: 14px; width: 14px; height: 14px; vertical-align: -2px; }
+    .cascade { font-size: 12px; color: #c62828; margin: 6px 0 0 32px; }
+    .cascade mat-icon { font-size: 14px; width: 14px; height: 14px; vertical-align: -2px; }
     .error { color: #c62828; background: #ffebee; border-radius: 6px; padding: 10px 12px; font-size: 13px; }
   `,
 })
@@ -261,20 +269,50 @@ export class SchoolModulesDialogComponent {
     return keys.map((k) => this.data.catalogue.find((m) => m.key === k)?.name || k).join(', ');
   }
 
+  /** Everything `key` needs, following the chain to the end. */
+  private requirementsOf(key: string, seen = new Set<string>()): Set<string> {
+    const mod = this.data.catalogue.find((m) => m.key === key);
+    for (const dep of mod?.requires || []) {
+      if (seen.has(dep)) continue;
+      seen.add(dep);
+      this.requirementsOf(dep, seen);
+    }
+    return seen;
+  }
+
+  /** Everything that would be stranded if `key` were switched off. */
+  private dependentsOf(key: string, seen = new Set<string>()): Set<string> {
+    for (const m of this.data.catalogue) {
+      if (seen.has(m.key)) continue;
+      if (m.requires.includes(key)) {
+        seen.add(m.key);
+        this.dependentsOf(m.key, seen);
+      }
+    }
+    return seen;
+  }
+
   toggle(key: string, on: boolean) {
     this.error = '';
     if (on) {
       this.selected.add(key);
-      // Pull in what this module needs rather than rejecting the click.
-      const mod = this.data.catalogue.find((m) => m.key === key);
-      for (const dep of mod?.requires || []) this.selected.add(dep);
+      // Pull in what this module needs rather than rejecting the click —
+      // the whole chain, so enabling report cards also brings in exams and
+      // the students module underneath them.
+      for (const dep of this.requirementsOf(key)) this.selected.add(dep);
     } else {
       this.selected.delete(key);
-      // Anything depending on it cannot stay on.
-      for (const m of this.data.catalogue) {
-        if (m.requires.includes(key)) this.selected.delete(m.key);
-      }
+      // Anything depending on it cannot stay on, however far down the chain:
+      // switching students off strands exams, and exams being off strands
+      // report cards.
+      for (const dep of this.dependentsOf(key)) this.selected.delete(dep);
     }
+  }
+
+  /** Named in the dialog so the cascade is visible before it is saved. */
+  cascadeFrom(key: string): string {
+    const dependents = [...this.dependentsOf(key)].filter((k) => this.selected.has(k));
+    return this.nameOf(dependents);
   }
 
   save() {

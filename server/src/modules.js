@@ -35,6 +35,32 @@ export const MODULES = [
     requires: ['students'],
     permissions: ['exams.manage', 'results.enter', 'results.view'],
   },
+  {
+    key: 'attendance',
+    name: 'Attendance',
+    description: 'Daily register per class, absence reasons, and attendance rates per student.',
+    defaultOn: false,
+    requires: ['students'],
+    permissions: ['attendance.take', 'attendance.view'],
+  },
+  {
+    key: 'reports',
+    name: 'Report cards',
+    description: 'Termly report cards combining results and attendance, issued to guardians as PDF.',
+    defaultOn: false,
+    // Two levels deep: report cards need exams, which in turn need students.
+    // Switching students off must cascade all the way here.
+    requires: ['exams', 'attendance'],
+    permissions: ['reports.issue', 'reports.view'],
+  },
+  {
+    key: 'communications',
+    name: 'Communications',
+    description: 'Bulk announcements to staff or guardians, delivered through the mail outbox.',
+    defaultOn: false,
+    requires: ['students'],
+    permissions: ['comms.send', 'comms.view'],
+  },
 ];
 
 export const MODULE_KEYS = MODULES.map((m) => m.key);
@@ -51,6 +77,40 @@ export function permissionsForModules(enabled) {
 }
 
 /**
+ * Every module `key` needs, following the chain to the end.
+ *
+ * Report cards require exams, which require students. Enabling report cards
+ * has to pull in all of it, not just the first link.
+ */
+export function requirementsOf(key, seen = new Set()) {
+  for (const dep of getModule(key)?.requires || []) {
+    if (seen.has(dep)) continue;
+    seen.add(dep);
+    requirementsOf(dep, seen);
+  }
+  return seen;
+}
+
+/**
+ * Every module that would be left dangling if `key` were switched off,
+ * following the chain to the end.
+ *
+ * The direct dependents are not enough: switching students off strands exams,
+ * and exams being off strands report cards. Anything short of the full
+ * closure leaves a module enabled whose foundation is gone.
+ */
+export function dependentsOf(key, seen = new Set()) {
+  for (const mod of MODULES) {
+    if (seen.has(mod.key)) continue;
+    if ((mod.requires || []).includes(key)) {
+      seen.add(mod.key);
+      dependentsOf(mod.key, seen);
+    }
+  }
+  return seen;
+}
+
+/**
  * Validates a requested set of module keys.
  * Returns { modules } on success or { error } describing the first problem.
  */
@@ -63,7 +123,9 @@ export function validateModuleSelection(requested) {
   const chosen = [...new Set(requested)];
   for (const key of chosen) {
     const mod = getModule(key);
-    const missing = (mod.requires || []).filter((dep) => !chosen.includes(dep));
+    // Against the full chain, so {reports, exams} without students is caught
+    // here and not only one link at a time.
+    const missing = [...requirementsOf(key)].filter((dep) => !chosen.includes(dep));
     if (missing.length) {
       const names = missing.map((d) => getModule(d)?.name || d).join(', ');
       return { error: `"${mod.name}" also needs ${names} enabled.` };

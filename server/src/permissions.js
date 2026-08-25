@@ -17,6 +17,12 @@ export const PERMISSIONS = [
   { key: 'exams.manage', label: 'Create and publish exams', group: 'Exams', module: 'exams' },
   { key: 'results.enter', label: 'Enter exam results', group: 'Exams', module: 'exams' },
   { key: 'results.view', label: 'View exam results', group: 'Exams', module: 'exams' },
+  { key: 'attendance.take', label: 'Take the class register', group: 'Attendance', module: 'attendance' },
+  { key: 'attendance.view', label: 'View attendance records', group: 'Attendance', module: 'attendance' },
+  { key: 'reports.issue', label: 'Issue report cards', group: 'Report cards', module: 'reports' },
+  { key: 'reports.view', label: 'View report cards', group: 'Report cards', module: 'reports' },
+  { key: 'comms.send', label: 'Send announcements', group: 'Communications', module: 'communications' },
+  { key: 'comms.view', label: 'View sent announcements', group: 'Communications', module: 'communications' },
 ];
 
 export const PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);

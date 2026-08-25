@@ -185,6 +185,20 @@ export class ShellComponent {
     if (this.auth.canUse('students', 'subjects.manage', 'students.view')) {
       items.push({ label: 'Subjects', icon: 'menu_book', link: '/subjects' });
     }
+    if (this.auth.canUse('exams', 'exams.manage', 'results.enter', 'results.view')) {
+      // Prefix matching is right here: /exams/:id is the results grid for one
+      // of these exams, not a separate destination.
+      items.push({ label: 'Exams', icon: 'grading', link: '/exams' });
+    }
+    if (this.auth.canUse('attendance', 'attendance.take', 'attendance.view')) {
+      items.push({ label: 'Attendance', icon: 'how_to_reg', link: '/attendance' });
+    }
+    if (this.auth.canUse('reports', 'reports.issue', 'reports.view')) {
+      items.push({ label: 'Report cards', icon: 'description', link: '/reports' });
+    }
+    if (this.auth.canUse('communications', 'comms.send', 'comms.view')) {
+      items.push({ label: 'Communications', icon: 'campaign', link: '/communications' });
+    }
     return items;
   });
 

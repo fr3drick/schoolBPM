@@ -270,3 +270,109 @@ export interface ImportResult {
   skipped: number;
   errors: { row: number; message: string }[];
 }
+
+export type ExamStatus = 'draft' | 'open' | 'published';
+export type Term = 'first' | 'second' | 'third';
+
+/** Always populated: every exam the API returns has its subject expanded. */
+export interface ExamSubject {
+  subject: Subject;
+  maxScore: number;
+}
+
+export interface Exam {
+  _id: string;
+  /** Always populated by the API, never a bare id. */
+  class: ClassRef;
+  session: string;
+  term: Term;
+  name?: string;
+  label?: string;
+  subjects: ExamSubject[];
+  status: ExamStatus;
+  publishCount?: number;
+  publishedAt?: string | null;
+  /** Progress, supplied by the list endpoint only. */
+  entered?: number;
+  expected?: number;
+  roll?: number;
+}
+
+/** One student's row in the results grid. */
+export interface ResultRow {
+  student: string;
+  admissionNumber: string;
+  name: string;
+  guardianCount: number;
+  scores: { subject: string; score: number | null; grade: string }[];
+  total: number;
+  average: number;
+  passed: number;
+  count: number;
+  position: number | null;
+}
+
+export interface PublishOutcome {
+  queued: number;
+  guardians: number;
+  students: number;
+  withoutResults: number;
+  withoutGuardian: number;
+}
+
+export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused';
+
+export interface RegisterRecord {
+  student: string;
+  admissionNumber: string;
+  name: string;
+  status: AttendanceStatus;
+  note: string;
+}
+
+export interface Register {
+  class: ClassRef;
+  date: string;
+  taken: boolean;
+  takenAt: string | null;
+  records: RegisterRecord[];
+}
+
+export interface AttendanceSummaryRow {
+  student: string;
+  admissionNumber: string;
+  name: string;
+  sessions: number;
+  present: number;
+  late: number;
+  absent: number;
+  excused: number;
+  rate: number;
+}
+
+export type Audience = 'staff' | 'guardians' | 'class_guardians';
+
+export interface Announcement {
+  _id: string;
+  subject: string;
+  body: string;
+  audience: Audience;
+  class?: ClassRef | null;
+  sentByName: string;
+  recipients: number;
+  skipped: number;
+  createdAt: string;
+}
+
+/** One student's readiness for a report card. */
+export interface ReportCardRow {
+  student: string;
+  admissionNumber: string;
+  name: string;
+  subjects: number;
+  average: number;
+  position: number | null;
+  attendanceRate: number | null;
+  guardianCount: number;
+  ready: boolean;
+}

@@ -119,6 +119,36 @@ export const routes: Routes = [
         loadComponent: () => import('./features/subjects/subjects').then((m) => m.SubjectsComponent),
       },
       {
+        path: 'exams',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'exams', perms: ['exams.manage', 'results.enter', 'results.view'] },
+        loadComponent: () => import('./features/exams/exams').then((m) => m.ExamsComponent),
+      },
+      {
+        path: 'exams/:id',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'exams', perms: ['exams.manage', 'results.enter', 'results.view'] },
+        loadComponent: () => import('./features/exams/exam-results').then((m) => m.ExamResultsComponent),
+      },
+      {
+        path: 'attendance',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'attendance', perms: ['attendance.take', 'attendance.view'] },
+        loadComponent: () => import('./features/attendance/attendance').then((m) => m.AttendanceComponent),
+      },
+      {
+        path: 'reports',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'reports', perms: ['reports.issue', 'reports.view'] },
+        loadComponent: () => import('./features/reports/reports').then((m) => m.ReportsComponent),
+      },
+      {
+        path: 'communications',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'communications', perms: ['comms.send', 'comms.view'] },
+        loadComponent: () => import('./features/communications/communications').then((m) => m.CommunicationsComponent),
+      },
+      {
         path: 'audit',
         canActivate: [permGuard],
         data: { perms: ['audit.view'] },

@@ -503,3 +503,117 @@ export function renderOnboardingReviewEmail({ schoolName, adminName, adminEmail,
 
   return { subject: `New school registration: ${schoolName}`, html, text };
 }
+
+/**
+ * A guardian's copy of one child's exam results.
+ *
+ * Deliberately self-contained: no link back into the app, because guardians
+ * have no account to sign in to. Everything they need is in the message, and
+ * the school's own address is the reply-to, so a query about a mark goes to
+ * the school rather than into a no-reply void.
+ */
+export function renderResultsEmail({
+  guardianName, studentName, schoolName, className, term, session,
+  subjects, summary, position, classSize,
+}) {
+  const termName = term ? `${term[0].toUpperCase()}${term.slice(1)} term` : '';
+  const heading = [termName, session].filter(Boolean).join(' ');
+
+  const rows = subjects
+    .map(
+      (s) => `
+                  <tr>
+                    <td style="padding:9px 12px;border-bottom:1px solid #eceff1;font-size:14px;">${esc(s.subject)}</td>
+                    <td style="padding:9px 12px;border-bottom:1px solid #eceff1;font-size:14px;text-align:right;">
+                      ${esc(s.score)}<span style="color:#919eab;">/${esc(s.maxScore)}</span>
+                    </td>
+                    <td style="padding:9px 12px;border-bottom:1px solid #eceff1;font-size:14px;text-align:center;font-weight:600;">${esc(s.grade)}</td>
+                  </tr>`
+    )
+    .join('');
+
+  const table = `
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin:20px 0;border-collapse:collapse;">
+                  <tr>
+                    <th align="left" style="padding:8px 12px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#919eab;border-bottom:2px solid #e3e7ea;">Subject</th>
+                    <th align="right" style="padding:8px 12px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#919eab;border-bottom:2px solid #e3e7ea;">Score</th>
+                    <th align="center" style="padding:8px 12px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#919eab;border-bottom:2px solid #e3e7ea;">Grade</th>
+                  </tr>${rows}
+                </table>`;
+
+  const html = page({
+    org: schoolName || 'School BPM',
+    title: `${studentName} — ${heading}`,
+    subtitle: className ? `Class ${className}` : '',
+    body: `
+                <p style="font-size:15px;line-height:1.6;margin:16px 0 0;">
+                  Dear ${esc(greeting(guardianName))}, the results for ${esc(heading.toLowerCase())} are now available.
+                </p>${table}${panel([
+                  { label: 'Average', value: `${summary.average}%` },
+                  { label: 'Subjects passed', value: `${summary.passed} of ${summary.count}` },
+                  ...(position ? [{ label: 'Position in class', value: `${position} of ${classSize}` }] : []),
+                ])}
+                <p style="font-size:14px;line-height:1.6;color:#637381;margin:20px 0 0;">
+                  Reply to this email if you would like to discuss these results with the school.
+                </p>`,
+    footer: `Sent by ${esc(schoolName || 'the school')} to the guardian address held on file for ${esc(studentName)}.`,
+  });
+
+  const text = [
+    schoolName || 'School BPM',
+    '',
+    `${studentName} — ${heading}`,
+    className ? `Class ${className}` : null,
+    '',
+    ...subjects.map((s) => `  ${s.subject}: ${s.score}/${s.maxScore}  (${s.grade})`),
+    '',
+    `Average:         ${summary.average}%`,
+    `Subjects passed: ${summary.passed} of ${summary.count}`,
+    ...(position ? [`Position:        ${position} of ${classSize}`] : []),
+    '',
+    'Reply to this email to discuss these results with the school.',
+    // Only the conditional lines are dropped; the '' entries are the blank
+    // lines that keep the plain-text part readable.
+  ].filter((line) => line !== null).join('\n');
+
+  return { subject: `${studentName} — ${heading} results`, html, text };
+}
+
+/**
+ * A bulk announcement from a school.
+ *
+ * The body is written by a member of school staff in a plain textarea and is
+ * escaped like everything else here — a message about "<3 our pupils" must
+ * arrive as text, not as a broken tag. Line breaks are the only formatting
+ * carried through, which keeps the escaping total.
+ */
+export function renderAnnouncementEmail({ recipientName, schoolName, subject, body, replyTo }) {
+  const paragraphs = String(body || '')
+    .split(/\n{2,}/)
+    .map((p) => `<p style="font-size:15px;line-height:1.6;margin:0 0 14px;">${esc(p).replace(/\n/g, '<br />')}</p>`)
+    .join('');
+
+  const html = page({
+    org: schoolName || 'School BPM',
+    title: subject,
+    body: `
+                <p style="font-size:15px;line-height:1.6;margin:16px 0 14px;">
+                  Dear ${esc(greeting(recipientName))},
+                </p>${paragraphs}`,
+    footer: replyTo
+      ? `Sent by ${esc(schoolName || 'the school')}. Reply to this email to reach the school office.`
+      : `Sent by ${esc(schoolName || 'the school')}.`,
+  });
+
+  const text = [
+    schoolName || 'School BPM',
+    '',
+    subject,
+    '',
+    `Dear ${greeting(recipientName)},`,
+    '',
+    String(body || ''),
+  ].join('\n');
+
+  return { subject, html, text };
+}

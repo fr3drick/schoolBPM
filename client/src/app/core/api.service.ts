@@ -1,8 +1,17 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import {
+  Announcement,
   AppNotification,
+  AttendanceSummaryRow,
+  Audience,
   DashboardStats,
+  Exam,
+  ExamStatus,
+  PublishOutcome,
+  Register,
+  ReportCardRow,
+  ResultRow,
   PermissionDef,
   ProcessDefinition,
   ProcessInstance,
@@ -243,6 +252,74 @@ export class ApiService {
   }
   audit() {
     return this.http.get<{ logs: AuditEntry[] }>('/api/audit');
+  }
+
+  // ---- exams & results ----
+  exams(params: { class?: string; session?: string; term?: string; status?: string } = {}) {
+    const query: Record<string, string> = {};
+    for (const [k, v] of Object.entries(params)) if (v) query[k] = v;
+    return this.http.get<{ exams: Exam[] }>('/api/exams', { params: query });
+  }
+  exam(id: string) {
+    return this.http.get<{ exam: Exam }>(`/api/exams/${id}`);
+  }
+  createExam(body: unknown) {
+    return this.http.post<{ exam: Exam }>('/api/exams', body);
+  }
+  updateExam(id: string, body: unknown) {
+    return this.http.put<{ exam: Exam }>(`/api/exams/${id}`, body);
+  }
+  setExamStatus(id: string, status: ExamStatus) {
+    return this.http.post<{ exam: Exam }>(`/api/exams/${id}/status`, { status });
+  }
+  deleteExam(id: string) {
+    return this.http.delete<{ ok: boolean }>(`/api/exams/${id}`);
+  }
+  examResults(id: string) {
+    return this.http.get<{ exam: Exam; rows: ResultRow[] }>(`/api/exams/${id}/results`);
+  }
+  saveResults(id: string, cells: { student: string; subject: string; score: number | null }[]) {
+    return this.http.put<{ saved: number; cleared: number }>(`/api/exams/${id}/results`, { cells });
+  }
+  publishExam(id: string) {
+    return this.http.post<{ exam: Exam } & PublishOutcome>(`/api/exams/${id}/publish`, {});
+  }
+  resultSheetUrl(examId: string, studentId: string) {
+    return `/api/exams/${examId}/students/${studentId}/sheet`;
+  }
+
+  // ---- attendance ----
+  register(classId: string, date: string) {
+    return this.http.get<Register>('/api/attendance/register', { params: { class: classId, date } });
+  }
+  saveRegister(classId: string, date: string, records: { student: string; status: string; note?: string }[]) {
+    return this.http.put<{ register: unknown }>('/api/attendance/register', { class: classId, date, records });
+  }
+  attendanceSummary(params: { class?: string; from?: string; to?: string } = {}) {
+    const query: Record<string, string> = {};
+    for (const [k, v] of Object.entries(params)) if (v) query[k] = v;
+    return this.http.get<{ summary: AttendanceSummaryRow[] }>('/api/attendance/summary', { params: query });
+  }
+
+  // ---- report cards ----
+  reportCards(examId: string) {
+    return this.http.get<{ exam: Exam; students: ReportCardRow[] }>(`/api/reports/exam/${examId}`);
+  }
+  reportCardUrl(examId: string, studentId: string) {
+    return `/api/reports/exam/${examId}/student/${studentId}`;
+  }
+
+  // ---- communications ----
+  announcements() {
+    return this.http.get<{ announcements: Announcement[] }>('/api/communications');
+  }
+  audienceSize(audience: Audience, classId?: string) {
+    const params: Record<string, string> = { audience };
+    if (classId) params['class'] = classId;
+    return this.http.get<{ count: number }>('/api/communications/audience', { params });
+  }
+  sendAnnouncement(body: { subject: string; body: string; audience: Audience; class?: string }) {
+    return this.http.post<{ announcement: Announcement; queued: number }>('/api/communications', body);
   }
 }
 
