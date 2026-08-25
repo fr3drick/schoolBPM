@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, awaitingReviewGuard, permGuard, platformGuard } from './core/guards';
+import { authGuard, awaitingReviewGuard, moduleGuard, permGuard, platformGuard } from './core/guards';
 
 export const routes: Routes = [
   { path: 'login', loadComponent: () => import('./features/login/login').then((m) => m.LoginComponent) },
@@ -99,6 +99,24 @@ export const routes: Routes = [
         canActivate: [permGuard],
         data: { perms: ['email.view'] },
         loadComponent: () => import('./features/admin/emails/emails').then((m) => m.EmailsComponent),
+      },
+      {
+        path: 'students',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'students', perms: ['students.view', 'students.manage'] },
+        loadComponent: () => import('./features/students/students').then((m) => m.StudentsComponent),
+      },
+      {
+        path: 'classes',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'students', perms: ['classes.manage', 'students.view'] },
+        loadComponent: () => import('./features/classes/classes').then((m) => m.ClassesComponent),
+      },
+      {
+        path: 'subjects',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'students', perms: ['subjects.manage', 'students.view'] },
+        loadComponent: () => import('./features/subjects/subjects').then((m) => m.SubjectsComponent),
       },
       {
         path: 'audit',

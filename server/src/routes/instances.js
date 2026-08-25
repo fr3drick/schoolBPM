@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import ProcessDefinition from '../models/ProcessDefinition.js';
 import ProcessInstance from '../models/ProcessInstance.js';
-import { requireAuth, requireSchool, permit, hasPerm } from '../middleware/auth.js';
+import { requireAuth, requireSchool, requireModule, permit, hasPerm } from '../middleware/auth.js';
 import { buildSnapshot, nextReference, stepApproverRoleIds, validateData } from '../services/workflow.js';
 import { notifyRoles, notifyUsers } from '../services/notify.js';
 import School from '../models/School.js';
@@ -10,7 +10,7 @@ import { logAudit } from '../services/audit.js';
 import { httpError } from '../services/errors.js';
 
 const router = Router();
-router.use(requireAuth, requireSchool);
+router.use(requireAuth, requireSchool, requireModule('workflow'));
 
 function isApproverNow(user, instance) {
   return (

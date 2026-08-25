@@ -8,8 +8,13 @@ import {
   ProcessInstance,
   EmailCounts,
   EmailDelivery,
+  ImportResult,
+  ModuleDef,
   Role,
   School,
+  SchoolClass,
+  Student,
+  Subject,
   SchoolRegistration,
   UserProfile,
   Viewer,
@@ -70,6 +75,12 @@ export class ApiService {
   }
   createSchool(body: unknown) {
     return this.http.post<{ school: School; admin: { email: string } }>('/api/schools', body);
+  }
+  moduleCatalogue() {
+    return this.http.get<{ modules: ModuleDef[] }>('/api/schools/modules');
+  }
+  setSchoolModules(id: string, modules: string[]) {
+    return this.http.put<{ school: School }>(`/api/schools/${id}/modules`, { modules });
   }
   updateSchool(id: string, body: unknown) {
     return this.http.put<{ school: School }>(`/api/schools/${id}`, body);
@@ -170,6 +181,54 @@ export class ApiService {
   }
   retryEmail(id: string) {
     return this.http.post<{ email: EmailDelivery }>(`/api/emails/${id}/retry`, {});
+  }
+
+  // ---- students, classes, subjects ----
+  students(params: { q?: string; class?: string; status?: string } = {}) {
+    const query: Record<string, string> = {};
+    for (const [k, v] of Object.entries(params)) if (v) query[k] = v;
+    return this.http.get<{ students: Student[]; total: number }>('/api/students', { params: query });
+  }
+  createStudent(body: unknown) {
+    return this.http.post<{ student: Student }>('/api/students', body);
+  }
+  updateStudent(id: string, body: unknown) {
+    return this.http.put<{ student: Student }>(`/api/students/${id}`, body);
+  }
+  deleteStudent(id: string) {
+    return this.http.delete<{ ok: boolean }>(`/api/students/${id}`);
+  }
+  importStudents(rows: unknown[], updateExisting: boolean) {
+    return this.http.post<ImportResult>('/api/students/import', { rows, updateExisting });
+  }
+
+  classes() {
+    return this.http.get<{ classes: SchoolClass[] }>('/api/classes');
+  }
+  createClass(body: unknown) {
+    return this.http.post<{ class: SchoolClass }>('/api/classes', body);
+  }
+  updateClass(id: string, body: unknown) {
+    return this.http.put<{ class: SchoolClass }>(`/api/classes/${id}`, body);
+  }
+  deleteClass(id: string) {
+    return this.http.delete<{ ok: boolean }>(`/api/classes/${id}`);
+  }
+  assignStudentsToClass(id: string, studentIds: string[]) {
+    return this.http.post<{ assigned: number }>(`/api/classes/${id}/students`, { studentIds });
+  }
+
+  subjects() {
+    return this.http.get<{ subjects: Subject[] }>('/api/subjects');
+  }
+  createSubject(body: unknown) {
+    return this.http.post<{ subject: Subject }>('/api/subjects', body);
+  }
+  updateSubject(id: string, body: unknown) {
+    return this.http.put<{ subject: Subject }>(`/api/subjects/${id}`, body);
+  }
+  deleteSubject(id: string) {
+    return this.http.delete<{ ok: boolean }>(`/api/subjects/${id}`);
   }
 
   // ---- notifications / dashboard / audit ----

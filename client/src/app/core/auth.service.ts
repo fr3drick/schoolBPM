@@ -72,6 +72,20 @@ export class AuthService {
     this.user.set(res.user);
   }
 
+  /**
+   * Whether the signed-in user's school has a feature module.
+   * Independent of permissions: a module is what the school has been given,
+   * a permission is what the user may do with it. Both must hold.
+   */
+  hasModule(key: string): boolean {
+    return this.user()?.school?.modules?.includes(key) ?? false;
+  }
+
+  /** Module enabled AND permission held — the check nav items actually need. */
+  canUse(moduleKey: string, ...perms: string[]): boolean {
+    return this.hasModule(moduleKey) && this.hasAnyPerm(...perms);
+  }
+
   hasPerm(perm: string): boolean {
     return this.user()?.role?.permissions?.includes(perm) ?? false;
   }

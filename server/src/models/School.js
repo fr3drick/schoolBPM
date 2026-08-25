@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { DEFAULT_MODULES, MODULE_KEYS } from '../modules.js';
 
 export const SCHOOL_STATUSES = ['pending', 'approved', 'rejected'];
 
@@ -40,6 +41,12 @@ const schoolSchema = new mongoose.Schema(
     reviewedAt: { type: Date, default: null },
     reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     // True when the school arrived through public signup rather than the console.
+    // Feature modules the platform has enabled for this school. Validated
+    // against the catalogue so a stale key cannot silently grant access.
+    modules: {
+      type: [{ type: String, enum: MODULE_KEYS }],
+      default: () => [...DEFAULT_MODULES],
+    },
     selfSignup: { type: Boolean, default: false },
 
     // Deactivating a school locks out all of its users without deleting data.

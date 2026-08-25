@@ -163,18 +163,27 @@ export class ShellComponent {
       return [{ label: 'Schools', icon: 'domain', link: '/platform/schools' }];
     }
     const items: NavItem[] = [{ label: 'Dashboard', icon: 'dashboard', link: '/', exact: true }];
-    if (this.auth.hasPerm('instances.initiate')) {
+    if (this.auth.canUse('workflow', 'instances.initiate')) {
       items.push({ label: 'Start a request', icon: 'add_circle', link: '/start' });
       // Exact: the request detail page lives at /requests/:id, and anyone with
       // instances.view_all reaches it from All requests or Approvals. Prefix
       // matching would highlight "My requests" for a request that is not theirs.
       items.push({ label: 'My requests', icon: 'list_alt', link: '/requests', exact: true });
     }
-    if (this.auth.hasPerm('instances.act')) {
+    if (this.auth.canUse('workflow', 'instances.act')) {
       items.push({ label: 'Approvals', icon: 'fact_check', link: '/approvals' });
     }
-    if (this.auth.hasPerm('instances.view_all')) {
+    if (this.auth.canUse('workflow', 'instances.view_all')) {
       items.push({ label: 'All requests', icon: 'folder_open', link: '/all' });
+    }
+    if (this.auth.canUse('students', 'students.view', 'students.manage')) {
+      items.push({ label: 'Students', icon: 'school', link: '/students' });
+    }
+    if (this.auth.canUse('students', 'classes.manage', 'students.view')) {
+      items.push({ label: 'Classes', icon: 'groups', link: '/classes' });
+    }
+    if (this.auth.canUse('students', 'subjects.manage', 'students.view')) {
+      items.push({ label: 'Subjects', icon: 'menu_book', link: '/subjects' });
     }
     return items;
   });
@@ -183,7 +192,7 @@ export class ShellComponent {
     const items: NavItem[] = [];
     if (this.auth.hasPerm('users.manage')) items.push({ label: 'Users', icon: 'group', link: '/admin/users' });
     if (this.auth.hasPerm('roles.manage')) items.push({ label: 'Roles & permissions', icon: 'admin_panel_settings', link: '/admin/roles' });
-    if (this.auth.hasPerm('definitions.manage')) items.push({ label: 'Process designer', icon: 'account_tree', link: '/admin/processes' });
+    if (this.auth.canUse('workflow', 'definitions.manage')) items.push({ label: 'Process designer', icon: 'account_tree', link: '/admin/processes' });
     if (this.auth.hasPerm('email.view')) items.push({ label: 'Email delivery', icon: 'mark_email_unread', link: '/admin/emails' });
     if (this.auth.hasPerm('audit.view')) items.push({ label: 'Audit log', icon: 'history', link: '/audit' });
     return items;

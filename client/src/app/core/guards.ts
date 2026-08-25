@@ -33,6 +33,19 @@ export const platformGuard: CanActivateFn = () => {
   return auth.isPlatformAdmin() ? true : router.createUrlTree(['/']);
 };
 
+/**
+ * Route data: { module: 'students' }. Keeps a user out of a screen whose
+ * module their school does not have, so a stale bookmark or a hand-typed URL
+ * cannot reach a feature that is switched off.
+ */
+export const moduleGuard: CanActivateFn = (route) => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const key: string | undefined = route.data['module'];
+  if (!key) return true;
+  return auth.hasModule(key) ? true : router.createUrlTree(['/']);
+};
+
 /** Route data: { perms: ['users.manage', ...] } — any match passes. */
 export const permGuard: CanActivateFn = (route) => {
   const auth = inject(AuthService);

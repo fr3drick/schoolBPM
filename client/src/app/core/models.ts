@@ -24,6 +24,8 @@ export interface SchoolRef {
   status?: SchoolStatus;
   rejectionReason?: string;
   submittedAt?: string | null;
+  /** Feature modules the platform has enabled for this school. */
+  modules?: string[];
 }
 
 export interface School {
@@ -45,6 +47,7 @@ export interface School {
   reviewedAt?: string | null;
   active: boolean;
   userCount?: number;
+  modules?: string[];
   createdAt: string;
   /** The Super Admin who registered or was provisioned for the school. */
   admin?: { name: string; email: string } | null;
@@ -199,4 +202,71 @@ export interface EmailCounts {
   sent: number;
   failed: number;
   skipped: number;
+}
+
+// ---- modules ----
+
+export interface ModuleDef {
+  key: string;
+  name: string;
+  description: string;
+  requires: string[];
+  defaultOn: boolean;
+}
+
+// ---- students, classes, subjects ----
+
+export type StudentStatus = 'active' | 'graduated' | 'withdrawn';
+
+export interface Guardian {
+  name: string;
+  relationship?: string;
+  email?: string;
+  phone?: string;
+  isPrimary?: boolean;
+}
+
+export interface ClassRef {
+  _id: string;
+  name: string;
+}
+
+export interface SchoolClass {
+  _id: string;
+  name: string;
+  level?: string;
+  academicYear?: string;
+  formTeacher?: { id?: string; _id?: string; name: string; email: string } | string | null;
+  active: boolean;
+  studentCount?: number;
+}
+
+export interface Subject {
+  _id: string;
+  name: string;
+  code?: string;
+  active: boolean;
+}
+
+export interface Student {
+  _id: string;
+  admissionNumber: string;
+  firstName: string;
+  lastName: string;
+  otherNames?: string;
+  dateOfBirth?: string | null;
+  gender?: string;
+  class?: ClassRef | string | null;
+  guardians: Guardian[];
+  status: StudentStatus;
+  notes?: string;
+  createdAt?: string;
+}
+
+/** Outcome of a bulk import, reported per row so failures are actionable. */
+export interface ImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: { row: number; message: string }[];
 }

@@ -14,6 +14,9 @@ import notificationRoutes from './routes/notifications.js';
 import dashboardRoutes from './routes/dashboard.js';
 import auditRoutes from './routes/audit.js';
 import emailRoutes from './routes/emails.js';
+import studentRoutes from './routes/students.js';
+import classRoutes from './routes/classes.js';
+import subjectRoutes from './routes/subjects.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -36,6 +39,9 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/emails', emailRoutes);
+app.use('/api/students', studentRoutes);
+app.use('/api/classes', classRoutes);
+app.use('/api/subjects', subjectRoutes);
 
 // Serve the built Angular client from the same origin, so the SPA's relative
 // /api calls need no CORS and no second web server. Skipped in dev, where the
@@ -63,8 +69,15 @@ app.use((err, req, res, next) => {
     return res.status(400).json({ error: err.message });
   }
   if (err.code === 11000) {
-    const field = Object.keys(err.keyValue || {})[0] || 'field';
-    return res.status(409).json({ error: `A record with this ${field} already exists` });
+    // Every tenant-scoped unique index leads with `school`, which is never
+    // the half of the clash the user can do anything about. Name the field
+    // they actually typed, spaced out of camelCase.
+    const keys = Object.keys(err.keyValue || {});
+    const field = keys.find((k) => k !== 'school') || keys[0] || 'field';
+    const label = field.replace(/([A-Z])/g, ' $1').toLowerCase();
+    // Not the offending value: on a collated index Mongo reports the sort
+    // key, not the text that was typed, so quoting it prints gibberish.
+    return res.status(409).json({ error: `A record with this ${label} already exists` });
   }
   if (!err.status || err.status >= 500) console.error(err);
   const status = err.status || 500;

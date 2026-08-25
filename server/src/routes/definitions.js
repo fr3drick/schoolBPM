@@ -2,12 +2,12 @@ import { Router } from 'express';
 import ProcessDefinition, { FIELD_TYPES } from '../models/ProcessDefinition.js';
 import ProcessInstance from '../models/ProcessInstance.js';
 import Role from '../models/Role.js';
-import { requireAuth, requireSchool, permit, hasPerm } from '../middleware/auth.js';
+import { requireAuth, requireSchool, requireModule, permit, hasPerm } from '../middleware/auth.js';
 import { logAudit } from '../services/audit.js';
 import { httpError } from '../services/errors.js';
 
 const router = Router();
-router.use(requireAuth, requireSchool);
+router.use(requireAuth, requireSchool, requireModule('workflow'));
 
 function canInitiate(user, def) {
   return (
