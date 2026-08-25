@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -255,6 +255,7 @@ interface Resume {
     .back a:hover { text-decoration: underline; }
     @media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SignupComponent {
   private fb = inject(FormBuilder);

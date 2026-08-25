@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -64,6 +64,7 @@ import { ApiService } from '../../core/api.service';
     .back a, .hint a { color: #1565c0; text-decoration: none; }
     .back a:hover { text-decoration: underline; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ForgotPasswordComponent {
   private fb = inject(FormBuilder);

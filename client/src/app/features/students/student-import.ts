@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -177,6 +177,7 @@ interface ImportData {
     .section { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: #90a4ae; margin: 20px 0 8px; }
     .errors { max-height: 220px; overflow: auto; font-size: 13px; line-height: 1.7; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StudentImportComponent {
   private api = inject(ApiService);

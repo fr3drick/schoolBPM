@@ -1,14 +1,16 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatTableModule } from '@angular/material/table';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../../core/api.service';
 import { ProcessDefinition, RoleRef } from '../../../core/models';
 import { errorMessage } from '../../../core/auth.interceptor';
+import { confirmDialog } from '../../../shared/confirm-dialog';
 
 @Component({
   selector: 'app-designer-list',
@@ -69,9 +71,11 @@ import { errorMessage } from '../../../core/auth.interceptor';
     .small { font-size: 12px; }
     .actions-cell { text-align: right; white-space: nowrap; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DesignerListComponent {
   private api = inject(ApiService);
+  private dialog = inject(MatDialog);
   private snack = inject(MatSnackBar);
 
   definitions = signal<ProcessDefinition[]>([]);
@@ -115,10 +119,16 @@ export class DesignerListComponent {
   }
 
   remove(d: ProcessDefinition) {
-    if (!confirm(`Delete the process "${d.name}"? This only works if no requests exist for it.`)) return;
-    this.api.deleteDefinition(d._id).subscribe({
-      next: () => this.reload(),
-      error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 5000 }),
+    confirmDialog(this.dialog, {
+      title: 'Delete this process?',
+      message: `"${d.name}" will be removed. This only works while no request exists for it.`,
+      confirmLabel: 'Delete process',
+    }).subscribe((ok) => {
+      if (!ok) return;
+      this.api.deleteDefinition(d._id).subscribe({
+        next: () => this.reload(),
+        error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 5000 }),
+      });
     });
   }
 }

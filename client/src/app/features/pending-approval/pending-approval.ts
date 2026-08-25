@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -119,6 +119,7 @@ import { AuthService } from '../../core/auth.service';
     .actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 24px; }
     .note { text-align: center; font-size: 13px; color: #546e7a; margin-top: 12px; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PendingApprovalComponent {
   readonly auth = inject(AuthService);

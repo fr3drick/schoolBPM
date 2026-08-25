@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators,
@@ -203,6 +203,7 @@ const FIELD_TYPES: { value: FieldType; label: string }[] = [
     .actions { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 32px; }
     @media (max-width: 720px) { .row2, .item-grid { grid-template-columns: 1fr; } }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DesignerEditComponent {
   private api = inject(ApiService);

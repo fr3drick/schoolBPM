@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -47,6 +47,7 @@ import { ProcessDefinition } from '../../core/models';
     .meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #78909c; margin-bottom: 12px; }
     .actions { display: flex; justify-content: flex-end; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CatalogComponent {
   private api = inject(ApiService);

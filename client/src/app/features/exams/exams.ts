@@ -1,4 +1,4 @@
-import { Component, Inject, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Inject, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -18,6 +18,8 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { Exam, SchoolClass, Subject, Term } from '../../core/models';
 import { errorMessage } from '../../core/auth.interceptor';
+import { confirmDialog } from '../../shared/confirm-dialog';
+import { LoadingBarComponent } from '../../shared/loading-bar';
 
 const TERMS: { value: Term; label: string }[] = [
   { value: 'first', label: 'First term' },
@@ -94,6 +96,7 @@ const TERMS: { value: Term; label: string }[] = [
     .empty { color: #78909c; font-size: 13px; padding: 8px 0 16px; }
     .error { color: #c62828; background: #ffebee; border-radius: 6px; padding: 10px 12px; margin-top: 12px; font-size: 13px; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExamDialogComponent {
   terms = TERMS;
@@ -150,6 +153,7 @@ export class ExamDialogComponent {
     DatePipe, RouterLink, MatButtonModule, MatIconModule, MatTableModule,
     MatMenuModule, MatTooltipModule, MatProgressBarModule, MatFormFieldModule,
     MatSelectModule, FormsModule,
+    LoadingBarComponent,
   ],
   template: `
     <div class="page">
@@ -187,6 +191,7 @@ export class ExamDialogComponent {
       </div>
 
       <div class="table-card">
+        <app-loading-bar [active]="loading()" />
         @if (!exams().length && loaded()) {
           <div class="empty-state">
             <mat-icon>fact_check</mat-icon>
@@ -282,6 +287,7 @@ export class ExamDialogComponent {
     .empty-state { padding: 56px 20px; text-align: center; color: #90a4ae; }
     .empty-state mat-icon { font-size: 42px; width: 42px; height: 42px; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExamsComponent {
   private api = inject(ApiService);
@@ -294,6 +300,7 @@ export class ExamsComponent {
   classes = signal<SchoolClass[]>([]);
   subjects = signal<Subject[]>([]);
   loaded = signal(false);
+  loading = signal(false);
   classFilter = signal('');
   statusFilter = signal('');
 
@@ -307,9 +314,14 @@ export class ExamsComponent {
   }
 
   load() {
+    this.loading.set(true);
     this.api.exams({ class: this.classFilter(), status: this.statusFilter() }).subscribe({
-      next: (r) => { this.exams.set(r.exams); this.loaded.set(true); },
-      error: (err) => { this.snack.open(errorMessage(err), 'OK', { duration: 4000 }); this.loaded.set(true); },
+      next: (r) => { this.exams.set(r.exams); this.loaded.set(true); this.loading.set(false); },
+      error: (err) => {
+        this.snack.open(errorMessage(err), 'OK', { duration: 4000 });
+        this.loaded.set(true);
+        this.loading.set(false);
+      },
     });
   }
 
@@ -339,10 +351,18 @@ export class ExamsComponent {
   }
 
   remove(exam: Exam) {
-    if (!confirm(`Delete the ${exam.label} exam for ${exam.class?.name}?`)) return;
-    this.api.deleteExam(exam._id).subscribe({
-      next: () => { this.snack.open('Exam deleted', 'OK', { duration: 3000 }); this.load(); },
-      error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 6000 }),
+    confirmDialog(this.dialog, {
+      title: 'Delete this exam?',
+      message:
+        `The ${exam.label} exam for ${exam.class?.name} will be deleted, together with ` +
+        `every score entered against it. This cannot be undone.`,
+      confirmLabel: 'Delete exam',
+    }).subscribe((ok) => {
+      if (!ok) return;
+      this.api.deleteExam(exam._id).subscribe({
+        next: () => { this.snack.open('Exam deleted', 'OK', { duration: 3000 }); this.load(); },
+        error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 6000 }),
+      });
     });
   }
 

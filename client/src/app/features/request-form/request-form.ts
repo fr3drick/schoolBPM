@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -132,6 +132,7 @@ import { errorMessage } from '../../core/auth.interceptor';
     .n { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #1565c0; color: #fff; font-size: 11px; font-weight: 600; }
     .actions { display: flex; justify-content: flex-end; gap: 8px; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RequestFormComponent {
   private api = inject(ApiService);

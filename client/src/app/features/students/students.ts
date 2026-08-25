@@ -1,4 +1,4 @@
-import { Component, Inject, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, Inject, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
@@ -10,11 +10,16 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject as RxSubject, debounceTime } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { Guardian, SchoolClass, Student } from '../../core/models';
 import { errorMessage } from '../../core/auth.interceptor';
+import { confirmDialog } from '../../shared/confirm-dialog';
 import { StudentImportComponent } from './student-import';
 
 interface StudentDialogData {
@@ -134,8 +139,11 @@ interface StudentDialogData {
     </mat-dialog-actions>
   `,
   styles: `
-    .content { display: flex; flex-direction: column; min-width: 560px; padding-top: 8px; }
+    /* Sized, not pinned: 560px on a laptop, but a 360px phone gets the width
+       it has rather than a dialog that scrolls sideways. */
+    .content { display: flex; flex-direction: column; width: 560px; max-width: 100%; padding-top: 8px; }
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 599px) { .row2 { grid-template-columns: 1fr; gap: 0; } }
     .section {
       font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px;
       color: #90a4ae; margin: 8px 0 10px;
@@ -217,13 +225,14 @@ export class StudentDialogComponent {
   imports: [
     DatePipe, FormsModule, MatTableModule, MatIconModule, MatButtonModule,
     MatFormFieldModule, MatInputModule, MatSelectModule, MatMenuModule,
-    MatTooltipModule, MatDialogModule,
+    MatTooltipModule, MatDialogModule, MatPaginatorModule, MatProgressBarModule,
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
       <div class="page-header">
         <h1>Students</h1>
-        <span class="muted">{{ total() }} on roll</span>
+        <span class="muted">{{ countLabel() }}</span>
         <span class="spacer"></span>
         @if (canManage()) {
           <button mat-stroked-button (click)="importCsv()">
@@ -235,15 +244,25 @@ export class StudentDialogComponent {
         }
       </div>
 
+      <!-- One interaction model for the whole bar: everything applies as you
+           change it, the text box after a short pause. There used to be three
+           (Enter, selection-change, and an Apply button that was the only way
+           to make the search box take effect with the mouse). -->
       <div class="filters">
         <mat-form-field appearance="outline" class="search">
           <mat-label>Search name or admission number</mat-label>
-          <input matInput [(ngModel)]="query" (keyup.enter)="load()" />
-          <mat-icon matSuffix>search</mat-icon>
+          <input matInput [ngModel]="query()" (ngModelChange)="setQuery($event)" />
+          @if (query()) {
+            <button matSuffix mat-icon-button aria-label="Clear search" (click)="setQuery('')">
+              <mat-icon>close</mat-icon>
+            </button>
+          } @else {
+            <mat-icon matSuffix>search</mat-icon>
+          }
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Class</mat-label>
-          <mat-select [(ngModel)]="classFilter" (selectionChange)="load()">
+          <mat-select [ngModel]="classFilter()" (ngModelChange)="setClassFilter($event)">
             <mat-option [value]="''">All classes</mat-option>
             @for (c of classes(); track c._id) {
               <mat-option [value]="c._id">{{ c.name }}</mat-option>
@@ -252,21 +271,38 @@ export class StudentDialogComponent {
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Status</mat-label>
-          <mat-select [(ngModel)]="statusFilter" (selectionChange)="load()">
+          <mat-select [ngModel]="statusFilter()" (ngModelChange)="setStatusFilter($event)">
             <mat-option [value]="''">All</mat-option>
             <mat-option value="active">Active</mat-option>
             <mat-option value="graduated">Graduated</mat-option>
             <mat-option value="withdrawn">Withdrawn</mat-option>
           </mat-select>
         </mat-form-field>
-        <button mat-button (click)="load()">Apply</button>
+        @if (filtered()) {
+          <button mat-button (click)="clearFilters()">
+            <mat-icon>filter_alt_off</mat-icon> Clear
+          </button>
+        }
       </div>
 
       <div class="table-card">
-        @if (!students().length && loaded()) {
+        <!-- Reserves its own height so the table does not jump when the bar
+             appears on a filter change. -->
+        <div class="loading-slot">
+          @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
+        </div>
+        @if (!loaded()) {
+          <div class="empty-state">
+            <mat-icon>hourglass_empty</mat-icon>
+            <div>Loading students…</div>
+          </div>
+        } @else if (!students().length) {
           <div class="empty-state">
             <mat-icon>school</mat-icon>
-            <div>{{ query() || classFilter() || statusFilter() ? 'No students match those filters.' : 'No students yet — add one or import a CSV.' }}</div>
+            <div>{{ filtered() ? 'No students match those filters.' : 'No students yet — add one or import a CSV.' }}</div>
+            @if (filtered()) {
+              <button mat-button (click)="clearFilters()">Clear filters</button>
+            }
           </div>
         } @else {
           <table mat-table [dataSource]="students()">
@@ -326,12 +362,35 @@ export class StudentDialogComponent {
             <tr mat-row *matRowDef="let row; columns: columns"></tr>
           </table>
         }
+        <!-- Always rendered once loaded, even on a single page: it is the only
+             thing on screen that says how many students there are in total,
+             and its absence is what made 200-of-900 look like all of them. -->
+        @if (loaded() && total()) {
+          <mat-paginator
+            [length]="total()"
+            [pageSize]="pageSize()"
+            [pageIndex]="pageIndex()"
+            [pageSizeOptions]="[25, 50, 100, 200]"
+            (page)="onPage($event)"
+            aria-label="Select page of students"
+          />
+        }
       </div>
     </div>
   `,
   styles: `
     .filters { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
-    .search { min-width: 300px; }
+    .search { min-width: 300px; flex: 1 1 300px; }
+    .loading-slot { height: 4px; }
+    .table-card { position: relative; }
+    @media (max-width: 599px) {
+      .search { min-width: 0; }
+      .filters mat-form-field { flex: 1 1 100%; }
+      /* Six columns do not fit a phone; let the table scroll inside its card
+         rather than the page scrolling sideways. */
+      .table-card table { min-width: 720px; }
+      .table-card { overflow-x: auto; }
+    }
     .table-card { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
     .mono { font-family: monospace; }
     .small { font-size: 12px; }
@@ -350,34 +409,106 @@ export class StudentsComponent {
   private snack = inject(MatSnackBar);
   private auth = inject(AuthService);
 
+  private destroyRef = inject(DestroyRef);
+
   students = signal<Student[]>([]);
   classes = signal<SchoolClass[]>([]);
   total = signal(0);
   loaded = signal(false);
+  loading = signal(false);
   query = signal('');
   classFilter = signal('');
   statusFilter = signal('');
+  pageIndex = signal(0);
+  pageSize = signal(50);
 
   canManage = computed(() => this.auth.hasPerm('students.manage'));
+  filtered = computed(() => !!(this.query() || this.classFilter() || this.statusFilter()));
   columns = ['admissionNumber', 'name', 'class', 'guardian', 'status', 'created', 'actions'];
+
+  /** "Showing 51–100 of 912" — the count the page never used to admit to. */
+  countLabel = computed(() => {
+    const total = this.total();
+    if (!this.loaded()) return '';
+    if (!total) return this.filtered() ? 'no matches' : 'none on roll';
+    const first = this.pageIndex() * this.pageSize() + 1;
+    const last = Math.min(first + this.students().length - 1, total);
+    const scope = this.filtered() ? 'matching' : 'on roll';
+    if (total <= this.pageSize() && this.pageIndex() === 0) return `${total} ${scope}`;
+    return `showing ${first}–${last} of ${total} ${scope}`;
+  });
+
+  /** Typing debounces; picking from a select does not. Both end at `load()`. */
+  private typed = new RxSubject<void>();
 
   constructor() {
     this.api.classes().subscribe((res) => this.classes.set(res.classes));
+    this.typed
+      .pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.load());
+    this.load();
+  }
+
+  setQuery(value: string) {
+    this.query.set(value);
+    this.pageIndex.set(0);
+    this.typed.next();
+  }
+
+  setClassFilter(value: string) {
+    this.classFilter.set(value);
+    this.pageIndex.set(0);
+    this.load();
+  }
+
+  setStatusFilter(value: string) {
+    this.statusFilter.set(value);
+    this.pageIndex.set(0);
+    this.load();
+  }
+
+  clearFilters() {
+    this.query.set('');
+    this.classFilter.set('');
+    this.statusFilter.set('');
+    this.pageIndex.set(0);
+    this.load();
+  }
+
+  onPage(event: PageEvent) {
+    this.pageIndex.set(event.pageIndex);
+    this.pageSize.set(event.pageSize);
     this.load();
   }
 
   load() {
+    this.loading.set(true);
     this.api
-      .students({ q: this.query(), class: this.classFilter(), status: this.statusFilter() })
+      .students({
+        q: this.query(),
+        class: this.classFilter(),
+        status: this.statusFilter(),
+        skip: this.pageIndex() * this.pageSize(),
+        limit: this.pageSize(),
+      })
       .subscribe({
         next: (res) => {
           this.students.set(res.students);
           this.total.set(res.total);
+          // A delete can empty the last page. Step back rather than showing an
+          // empty table under a paginator that says there are results.
+          if (!res.students.length && res.total && this.pageIndex() > 0) {
+            this.pageIndex.set(Math.max(0, Math.ceil(res.total / this.pageSize()) - 1));
+            this.load();
+            return;
+          }
           this.loaded.set(true);
+          this.loading.set(false);
         },
         error: (err) => {
           this.snack.open(errorMessage(err), 'OK', { duration: 4000 });
           this.loaded.set(true);
+          this.loading.set(false);
         },
       });
   }
@@ -392,7 +523,7 @@ export class StudentsComponent {
 
   edit(student: Student | null) {
     this.dialog
-      .open(StudentDialogComponent, { data: { student, classes: this.classes() } })
+      .open(StudentDialogComponent, { data: { student, classes: this.classes() }, maxWidth: '95vw' })
       .afterClosed()
       .subscribe((body) => {
         if (!body) return;
@@ -409,7 +540,7 @@ export class StudentsComponent {
 
   importCsv() {
     this.dialog
-      .open(StudentImportComponent, { width: '880px', data: { classes: this.classes() } })
+      .open(StudentImportComponent, { width: '880px', maxWidth: '95vw', data: { classes: this.classes() } })
       .afterClosed()
       .subscribe((changed) => {
         if (changed) this.load();
@@ -417,13 +548,21 @@ export class StudentsComponent {
   }
 
   remove(student: Student) {
-    if (!confirm(`Delete ${student.firstName} ${student.lastName} (${student.admissionNumber})?`)) return;
-    this.api.deleteStudent(student._id).subscribe({
-      next: () => {
-        this.snack.open('Student deleted', 'OK', { duration: 3000 });
-        this.load();
-      },
-      error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 5000 }),
+    confirmDialog(this.dialog, {
+      title: 'Delete this student?',
+      message:
+        `${student.firstName} ${student.lastName} (${student.admissionNumber}) will be removed ` +
+        `from the roll. Their exam results and attendance records are not deleted.`,
+      confirmLabel: 'Delete student',
+    }).subscribe((ok) => {
+      if (!ok) return;
+      this.api.deleteStudent(student._id).subscribe({
+        next: () => {
+          this.snack.open('Student deleted', 'OK', { duration: 3000 });
+          this.load();
+        },
+        error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 5000 }),
+      });
     });
   }
 }

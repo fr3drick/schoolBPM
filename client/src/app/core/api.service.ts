@@ -29,6 +29,25 @@ import {
   Viewer,
 } from './models';
 
+/** Offset paging, as every paginated endpoint on this API takes it. */
+export interface Page {
+  skip?: number;
+  limit?: number;
+}
+
+/**
+ * Drops empty strings but keeps zeroes — `skip: 0` is a real page and must not
+ * be filtered out the way `class: ''` is.
+ */
+function queryParams(params: Record<string, string | number | undefined | null>): Record<string, string> {
+  const query: Record<string, string> = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === '') continue;
+    query[k] = String(v);
+  }
+  return query;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private http = inject(HttpClient);
@@ -124,15 +143,19 @@ export class ApiService {
   createInstance(definitionId: string, data: Record<string, unknown>) {
     return this.http.post<{ instance: ProcessInstance }>('/api/instances', { definitionId, data });
   }
-  myRequests() {
-    return this.http.get<{ instances: ProcessInstance[] }>('/api/instances/mine');
+  myRequests(page: Page = {}) {
+    return this.http.get<{ instances: ProcessInstance[]; total: number }>('/api/instances/mine', {
+      params: queryParams({ ...page }),
+    });
   }
-  tasks() {
-    return this.http.get<{ instances: ProcessInstance[] }>('/api/instances/tasks');
+  tasks(page: Page = {}) {
+    return this.http.get<{ instances: ProcessInstance[]; total: number }>('/api/instances/tasks', {
+      params: queryParams({ ...page }),
+    });
   }
-  allRequests(status?: string) {
-    return this.http.get<{ instances: ProcessInstance[] }>('/api/instances', {
-      params: status ? { status } : {},
+  allRequests(status?: string, page: Page = {}) {
+    return this.http.get<{ instances: ProcessInstance[]; total: number }>('/api/instances', {
+      params: queryParams({ status, ...page }),
     });
   }
   instance(id: string) {
@@ -183,9 +206,9 @@ export class ApiService {
   }
 
   // ---- email delivery ----
-  emails(status?: string) {
-    return this.http.get<{ emails: EmailDelivery[]; counts: EmailCounts }>('/api/emails', {
-      params: status ? { status } : {},
+  emails(status?: string, page: Page = {}) {
+    return this.http.get<{ emails: EmailDelivery[]; total: number; counts: EmailCounts }>('/api/emails', {
+      params: queryParams({ status, ...page }),
     });
   }
   retryEmail(id: string) {
@@ -193,10 +216,10 @@ export class ApiService {
   }
 
   // ---- students, classes, subjects ----
-  students(params: { q?: string; class?: string; status?: string } = {}) {
-    const query: Record<string, string> = {};
-    for (const [k, v] of Object.entries(params)) if (v) query[k] = v;
-    return this.http.get<{ students: Student[]; total: number }>('/api/students', { params: query });
+  students(params: { q?: string; class?: string; status?: string } & Page = {}) {
+    return this.http.get<{ students: Student[]; total: number }>('/api/students', {
+      params: queryParams({ ...params }),
+    });
   }
   createStudent(body: unknown) {
     return this.http.post<{ student: Student }>('/api/students', body);
@@ -250,15 +273,15 @@ export class ApiService {
   stats() {
     return this.http.get<DashboardStats>('/api/dashboard/stats');
   }
-  audit() {
-    return this.http.get<{ logs: AuditEntry[] }>('/api/audit');
+  audit(page: Page = {}) {
+    return this.http.get<{ logs: AuditEntry[]; total: number }>('/api/audit', {
+      params: queryParams({ ...page }),
+    });
   }
 
   // ---- exams & results ----
   exams(params: { class?: string; session?: string; term?: string; status?: string } = {}) {
-    const query: Record<string, string> = {};
-    for (const [k, v] of Object.entries(params)) if (v) query[k] = v;
-    return this.http.get<{ exams: Exam[] }>('/api/exams', { params: query });
+    return this.http.get<{ exams: Exam[] }>('/api/exams', { params: queryParams({ ...params }) });
   }
   exam(id: string) {
     return this.http.get<{ exam: Exam }>(`/api/exams/${id}`);
@@ -296,9 +319,9 @@ export class ApiService {
     return this.http.put<{ register: unknown }>('/api/attendance/register', { class: classId, date, records });
   }
   attendanceSummary(params: { class?: string; from?: string; to?: string } = {}) {
-    const query: Record<string, string> = {};
-    for (const [k, v] of Object.entries(params)) if (v) query[k] = v;
-    return this.http.get<{ summary: AttendanceSummaryRow[] }>('/api/attendance/summary', { params: query });
+    return this.http.get<{ summary: AttendanceSummaryRow[] }>('/api/attendance/summary', {
+      params: queryParams({ ...params }),
+    });
   }
 
   // ---- report cards ----
@@ -310,8 +333,10 @@ export class ApiService {
   }
 
   // ---- communications ----
-  announcements() {
-    return this.http.get<{ announcements: Announcement[] }>('/api/communications');
+  announcements(page: Page = {}) {
+    return this.http.get<{ announcements: Announcement[]; total: number }>('/api/communications', {
+      params: queryParams({ ...page }),
+    });
   }
   audienceSize(audience: Audience, classId?: string) {
     const params: Record<string, string> = { audience };

@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -74,6 +74,7 @@ import { errorMessage } from '../../core/auth.interceptor';
     .back a { color: #1565c0; text-decoration: none; }
     .back a:hover { text-decoration: underline; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ResetPasswordComponent {
   private fb = inject(FormBuilder);

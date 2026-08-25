@@ -40,11 +40,14 @@ async function recipientsFor(schoolId, audience, classId) {
 }
 
 router.get('/', permit('comms.view', 'comms.send'), async (req, res) => {
-  const announcements = await Announcement.find({ school: req.user.school._id })
-    .populate('class', 'name')
-    .sort({ createdAt: -1 })
-    .limit(100);
-  res.json({ announcements });
+  const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+  const skip = Math.max(Number(req.query.skip) || 0, 0);
+  const filter = { school: req.user.school._id };
+  const [announcements, total] = await Promise.all([
+    Announcement.find(filter).populate('class', 'name').sort({ createdAt: -1 }).skip(skip).limit(limit),
+    Announcement.countDocuments(filter),
+  ]);
+  res.json({ announcements, total });
 });
 
 /** How many people an audience would reach, so the sender can see it first. */

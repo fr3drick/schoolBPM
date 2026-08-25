@@ -1,4 +1,4 @@
-import { Component, Inject, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Inject, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
 import { MatIconModule } from '@angular/material/icon';
@@ -12,6 +12,8 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { Subject } from '../../core/models';
 import { errorMessage } from '../../core/auth.interceptor';
+import { confirmDialog } from '../../shared/confirm-dialog';
+import { LoadingBarComponent } from '../../shared/loading-bar';
 
 @Component({
   selector: 'app-subject-dialog',
@@ -35,6 +37,7 @@ import { errorMessage } from '../../core/auth.interceptor';
     </mat-dialog-actions>
   `,
   styles: `.content { display: flex; flex-direction: column; min-width: 380px; padding-top: 8px; }`,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SubjectDialogComponent {
   name = '';
@@ -57,6 +60,7 @@ export class SubjectDialogComponent {
   selector: 'app-subjects',
   imports: [
     MatTableModule, MatIconModule, MatButtonModule, MatSlideToggleModule, MatDialogModule,
+    LoadingBarComponent,
   ],
   template: `
     <div class="page">
@@ -72,6 +76,7 @@ export class SubjectDialogComponent {
       </div>
 
       <div class="table-card">
+        <app-loading-bar [active]="loading()" />
         @if (!subjects().length && loaded()) {
           <div class="empty-state">
             <mat-icon>menu_book</mat-icon>
@@ -115,6 +120,7 @@ export class SubjectDialogComponent {
     .mono { font-family: monospace; }
     .actions-cell { text-align: right; white-space: nowrap; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SubjectsComponent {
   private api = inject(ApiService);
@@ -124,15 +130,17 @@ export class SubjectsComponent {
 
   subjects = signal<Subject[]>([]);
   loaded = signal(false);
+  loading = signal(false);
   canManage = computed(() => this.auth.hasPerm('subjects.manage'));
   columns = ['name', 'code', 'active', 'actions'];
 
   constructor() { this.load(); }
 
   load() {
+    this.loading.set(true);
     this.api.subjects().subscribe({
-      next: (res) => { this.subjects.set(res.subjects); this.loaded.set(true); },
-      error: () => this.loaded.set(true),
+      next: (res) => { this.subjects.set(res.subjects); this.loaded.set(true); this.loading.set(false); },
+      error: () => { this.loaded.set(true); this.loading.set(false); },
     });
   }
 
@@ -155,10 +163,16 @@ export class SubjectsComponent {
   }
 
   remove(subject: Subject) {
-    if (!confirm(`Delete the subject "${subject.name}"?`)) return;
-    this.api.deleteSubject(subject._id).subscribe({
-      next: () => this.load(),
-      error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 5000 }),
+    confirmDialog(this.dialog, {
+      title: 'Delete this subject?',
+      message: `"${subject.name}" will no longer be available to add to an exam.`,
+      confirmLabel: 'Delete subject',
+    }).subscribe((ok) => {
+      if (!ok) return;
+      this.api.deleteSubject(subject._id).subscribe({
+        next: () => this.load(),
+        error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 5000 }),
+      });
     });
   }
 }

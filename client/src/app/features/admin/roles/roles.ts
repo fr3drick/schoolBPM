@@ -1,4 +1,4 @@
-import { Component, Inject, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Inject, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
 import { MatIconModule } from '@angular/material/icon';
@@ -14,6 +14,8 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../../core/api.service';
 import { PermissionDef, Role } from '../../../core/models';
 import { errorMessage } from '../../../core/auth.interceptor';
+import { confirmDialog } from '../../../shared/confirm-dialog';
+import { LoadingBarComponent } from '../../../shared/loading-bar';
 
 interface RoleDialogData {
   role: Role | null;
@@ -60,6 +62,7 @@ interface RoleDialogData {
     .perm-group-name { font-weight: 500; font-size: 13px; margin-bottom: 2px; }
     .perm-key { color: #90a4ae; font-size: 11px; font-family: monospace; margin-left: 6px; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RoleDialogComponent {
   name = '';
@@ -101,7 +104,10 @@ export class RoleDialogComponent {
 
 @Component({
   selector: 'app-roles',
-  imports: [MatTableModule, MatIconModule, MatButtonModule, MatTooltipModule, MatDialogModule],
+  imports: [
+    MatTableModule, MatIconModule, MatButtonModule, MatTooltipModule,
+    MatDialogModule, LoadingBarComponent,
+  ],
   template: `
     <div class="page">
       <div class="page-header">
@@ -113,6 +119,7 @@ export class RoleDialogComponent {
       </div>
 
       <div class="table-card">
+        <app-loading-bar [active]="loading()" />
         <table mat-table [dataSource]="roles()">
           <ng-container matColumnDef="name">
             <th mat-header-cell *matHeaderCellDef>Role</th>
@@ -161,6 +168,7 @@ export class RoleDialogComponent {
     .perm-chip { background: #eceff1; color: #455a64; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-family: monospace; }
     .actions-cell { text-align: right; white-space: nowrap; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RolesComponent {
   private api = inject(ApiService);
@@ -169,6 +177,7 @@ export class RolesComponent {
 
   roles = signal<Role[]>([]);
   permissions = signal<PermissionDef[]>([]);
+  loading = signal(false);
   columns = ['name', 'permissions', 'users', 'actions'];
 
   constructor() {
@@ -177,7 +186,14 @@ export class RolesComponent {
   }
 
   reload() {
-    this.api.roles().subscribe((res) => this.roles.set(res.roles));
+    this.loading.set(true);
+    this.api.roles().subscribe({
+      next: (res) => {
+        this.roles.set(res.roles);
+        this.loading.set(false);
+      },
+      error: () => this.loading.set(false),
+    });
   }
 
   openDialog(role: Role | null) {
@@ -198,10 +214,18 @@ export class RolesComponent {
   }
 
   remove(role: Role) {
-    if (!confirm(`Delete the role "${role.name}"?`)) return;
-    this.api.deleteRole(role.id).subscribe({
-      next: () => this.reload(),
-      error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 5000 }),
+    confirmDialog(this.dialog, {
+      title: 'Delete this role?',
+      message:
+        `"${role.name}" will be removed. This only works while no user holds it and no ` +
+        `process step is assigned to it.`,
+      confirmLabel: 'Delete role',
+    }).subscribe((ok) => {
+      if (!ok) return;
+      this.api.deleteRole(role.id).subscribe({
+        next: () => this.reload(),
+        error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 5000 }),
+      });
     });
   }
 }

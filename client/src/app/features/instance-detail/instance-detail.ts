@@ -1,4 +1,4 @@
-import { Component, Inject, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Inject, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -54,6 +54,7 @@ interface ActionResult {
       </button>
     </mat-dialog-actions>
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ActionDialogComponent {
   titles: Record<Action, string> = { approve: 'Approve', reject: 'Reject', return: 'Return for changes' };
@@ -188,6 +189,7 @@ export class ActionDialogComponent {
     .ev-comment { background: #f6f7f9; border-left: 3px solid #cfd8dc; border-radius: 4px; padding: 6px 10px; margin: 4px 0; font-style: italic; }
     .ev-time { font-size: 11px; color: #90a4ae; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class InstanceDetailComponent {
   private api = inject(ApiService);

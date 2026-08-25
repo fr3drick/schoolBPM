@@ -1,10 +1,12 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatTableModule } from '@angular/material/table';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../../core/api.service';
@@ -18,16 +20,17 @@ import { errorMessage } from '../../../core/auth.interceptor';
 @Component({
   selector: 'app-emails',
   imports: [
-    DatePipe, RouterLink, MatTableModule, MatIconModule,
-    MatButtonModule, MatButtonToggleModule, MatTooltipModule,
+    DatePipe, RouterLink, MatTableModule, MatIconModule, MatButtonModule,
+    MatButtonToggleModule, MatTooltipModule, MatPaginatorModule, MatProgressBarModule,
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
       <div class="page-header">
         <h1>Email delivery</h1>
         <span class="muted">Notification emails sent on behalf of your school</span>
         <span class="spacer"></span>
-        <button mat-stroked-button (click)="load()" matTooltip="Refresh">
+        <button mat-stroked-button [disabled]="loading()" (click)="load()" matTooltip="Refresh">
           <mat-icon>refresh</mat-icon> Refresh
         </button>
       </div>
@@ -52,7 +55,15 @@ import { errorMessage } from '../../../core/auth.interceptor';
       </div>
 
       <div class="table-card">
-        @if (emails().length === 0 && loaded()) {
+        <div class="loading-slot">
+          @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
+        </div>
+        @if (!loaded()) {
+          <div class="empty-state">
+            <mat-icon>hourglass_empty</mat-icon>
+            <div>Loading deliveries…</div>
+          </div>
+        } @else if (emails().length === 0) {
           <div class="empty-state">
             <mat-icon>mark_email_read</mat-icon>
             <div>{{ filter() ? 'Nothing with this status.' : 'No delivery problems — every email got through.' }}</div>
@@ -114,6 +125,16 @@ import { errorMessage } from '../../../core/auth.interceptor';
             <tr mat-row *matRowDef="let row; columns: columns"></tr>
           </table>
         }
+        @if (loaded() && total()) {
+          <mat-paginator
+            [length]="total()"
+            [pageSize]="pageSize()"
+            [pageIndex]="pageIndex()"
+            [pageSizeOptions]="[25, 50, 100]"
+            (page)="onPage($event)"
+            aria-label="Select page of email deliveries"
+          />
+        }
       </div>
     </div>
   `,
@@ -126,7 +147,13 @@ import { errorMessage } from '../../../core/auth.interceptor';
     .num.muted-num { color: #78909c; }
     .label { color: #78909c; font-size: 13px; margin-top: 2px; }
     .table-card { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+    .loading-slot { height: 4px; }
     .small { font-size: 12px; }
+    @media (max-width: 899px) {
+      mat-button-toggle-group { flex-wrap: wrap; }
+      .table-card { overflow-x: auto; }
+      .table-card table { min-width: 860px; }
+    }
     .nowrap { white-space: nowrap; }
     .subject-link { color: #1565c0; text-decoration: none; }
     .subject-link:hover { text-decoration: underline; }
@@ -140,8 +167,12 @@ export class EmailsComponent {
 
   emails = signal<EmailDelivery[]>([]);
   counts = signal<EmailCounts | null>(null);
+  total = signal(0);
   filter = signal('');
   loaded = signal(false);
+  loading = signal(false);
+  pageIndex = signal(0);
+  pageSize = signal(50);
   retrying = signal(new Set<string>());
   columns = ['status', 'recipient', 'subject', 'attempts', 'reason', 'when', 'actions'];
 
@@ -150,22 +181,39 @@ export class EmailsComponent {
   }
 
   load() {
-    this.loaded.set(false);
-    this.api.emails(this.filter() || undefined).subscribe({
-      next: (res) => {
-        this.emails.set(res.emails);
-        this.counts.set(res.counts);
-        this.loaded.set(true);
-      },
-      error: (err) => {
-        this.snack.open(errorMessage(err), 'OK', { duration: 4000 });
-        this.loaded.set(true);
-      },
-    });
+    // `loaded` stays true across a refresh so the table is not replaced by a
+    // spinner every time someone presses Refresh or retries one message.
+    this.loading.set(true);
+    this.api
+      .emails(this.filter() || undefined, {
+        skip: this.pageIndex() * this.pageSize(),
+        limit: this.pageSize(),
+      })
+      .subscribe({
+        next: (res) => {
+          this.emails.set(res.emails);
+          this.counts.set(res.counts);
+          this.total.set(res.total);
+          this.loaded.set(true);
+          this.loading.set(false);
+        },
+        error: (err) => {
+          this.snack.open(errorMessage(err), 'OK', { duration: 4000 });
+          this.loaded.set(true);
+          this.loading.set(false);
+        },
+      });
   }
 
   setFilter(value: string) {
     this.filter.set(value);
+    this.pageIndex.set(0);
+    this.load();
+  }
+
+  onPage(event: PageEvent) {
+    this.pageIndex.set(event.pageIndex);
+    this.pageSize.set(event.pageSize);
     this.load();
   }
 

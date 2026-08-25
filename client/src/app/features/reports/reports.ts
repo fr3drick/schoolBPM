@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -11,12 +11,13 @@ import { ApiService } from '../../core/api.service';
 import { DownloadService } from '../../core/download.service';
 import { Exam, ReportCardRow } from '../../core/models';
 import { errorMessage } from '../../core/auth.interceptor';
+import { LoadingBarComponent } from '../../shared/loading-bar';
 
 @Component({
   selector: 'app-reports',
   imports: [
     FormsModule, MatButtonModule, MatIconModule, MatTableModule,
-    MatFormFieldModule, MatSelectModule, MatTooltipModule,
+    MatFormFieldModule, MatSelectModule, MatTooltipModule, LoadingBarComponent,
   ],
   template: `
     <div class="page">
@@ -39,6 +40,7 @@ import { errorMessage } from '../../core/auth.interceptor';
       </div>
 
       <div class="table-card">
+        <app-loading-bar [active]="loading()" />
         @if (!examId()) {
           <div class="empty-state">
             <mat-icon>description</mat-icon>
@@ -114,6 +116,7 @@ import { errorMessage } from '../../core/auth.interceptor';
     .empty-state { padding: 56px 20px; text-align: center; color: #90a4ae; }
     .empty-state mat-icon { font-size: 42px; width: 42px; height: 42px; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReportsComponent {
   private api = inject(ApiService);
@@ -123,6 +126,7 @@ export class ReportsComponent {
   exams = signal<Exam[]>([]);
   rows = signal<ReportCardRow[]>([]);
   examId = signal('');
+  loading = signal(false);
   columns = ['name', 'subjects', 'average', 'position', 'attendance', 'actions'];
 
   constructor() {
@@ -134,9 +138,16 @@ export class ReportsComponent {
 
   load() {
     if (!this.examId()) return;
+    this.loading.set(true);
     this.api.reportCards(this.examId()).subscribe({
-      next: (r) => this.rows.set(r.students),
-      error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 6000 }),
+      next: (r) => {
+        this.rows.set(r.students);
+        this.loading.set(false);
+      },
+      error: (err) => {
+        this.snack.open(errorMessage(err), 'OK', { duration: 6000 });
+        this.loading.set(false);
+      },
     });
   }
 
