@@ -29,12 +29,13 @@ router.get('/', async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
   const skip = Math.max(Number(req.query.skip) || 0, 0);
 
-  const [emails, counts] = await Promise.all([
+  const [emails, total, counts] = await Promise.all([
     EmailOutbox.find(filter)
       .select('to toName subject status attempts lastError instance createdAt sentAt nextAttemptAt')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
+    EmailOutbox.countDocuments(filter),
     EmailOutbox.aggregate([
       { $match: { school: req.user.school._id } },
       { $group: { _id: '$status', count: { $sum: 1 } } },
@@ -44,7 +45,7 @@ router.get('/', async (req, res) => {
   const tally = { pending: 0, sent: 0, failed: 0, skipped: 0 };
   for (const c of counts) if (c._id in tally) tally[c._id] = c.count;
 
-  res.json({ emails, counts: tally });
+  res.json({ emails, total, counts: tally });
 });
 
 /**

@@ -60,6 +60,18 @@ export function hasPerm(user, perm) {
   return (user?.role?.permissions || []).includes(perm);
 }
 
+/**
+ * The read-only half of `requireModule`, for endpoints that are never
+ * module-gated as a whole but assemble a response out of per-module sections.
+ * The dashboard is the case this exists for: a school must always be able to
+ * reach it, so the router cannot carry `requireModule`, but a section fed by a
+ * module the school does not have must not appear in the payload either.
+ */
+export function hasModule(user, key) {
+  if (user?.isPlatformAdmin) return false;
+  return (user?.school?.modules || []).includes(key);
+}
+
 // Platform staff only: school onboarding and suspension.
 export function requirePlatformAdmin(req, res, next) {
   if (req.user?.isPlatformAdmin) return next();

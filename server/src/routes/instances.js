@@ -88,14 +88,12 @@ router.post('/', permit('instances.initiate'), async (req, res) => {
 router.get('/mine', async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
   const skip = Math.max(Number(req.query.skip) || 0, 0);
-  const instances = await ProcessInstance.find({
-    school: req.user.school._id,
-    initiator: req.user._id,
-  })
-    .sort({ updatedAt: -1 })
-    .skip(skip)
-    .limit(limit);
-  res.json({ instances });
+  const filter = { school: req.user.school._id, initiator: req.user._id };
+  const [instances, total] = await Promise.all([
+    ProcessInstance.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit),
+    ProcessInstance.countDocuments(filter),
+  ]);
+  res.json({ instances, total });
 });
 
 // The caller's approval queue: in-progress requests whose current step is
@@ -103,16 +101,17 @@ router.get('/mine', async (req, res) => {
 router.get('/tasks', permit('instances.act'), async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
   const skip = Math.max(Number(req.query.skip) || 0, 0);
-  const instances = await ProcessInstance.find({
+  const filter = {
     school: req.user.school._id,
     status: 'in_progress',
     currentApproverRoles: req.user.role._id,
     initiator: { $ne: req.user._id },
-  })
-    .sort({ updatedAt: 1 })
-    .skip(skip)
-    .limit(limit);
-  res.json({ instances });
+  };
+  const [instances, total] = await Promise.all([
+    ProcessInstance.find(filter).sort({ updatedAt: 1 }).skip(skip).limit(limit),
+    ProcessInstance.countDocuments(filter),
+  ]);
+  res.json({ instances, total });
 });
 
 const ALLOWED_STATUSES = ['in_progress', 'approved', 'rejected', 'returned'];
@@ -126,8 +125,11 @@ router.get('/', permit('instances.view_all'), async (req, res) => {
   }
   const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 500);
   const skip = Math.max(Number(req.query.skip) || 0, 0);
-  const instances = await ProcessInstance.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit);
-  res.json({ instances });
+  const [instances, total] = await Promise.all([
+    ProcessInstance.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit),
+    ProcessInstance.countDocuments(filter),
+  ]);
+  res.json({ instances, total });
 });
 
 router.get('/:id', async (req, res) => {
