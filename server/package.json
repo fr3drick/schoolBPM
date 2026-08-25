@@ -8,7 +8,10 @@
     "start": "node src/index.js",
     "seed": "node src/seed.js",
     "seed:fresh": "node src/seed.js --fresh",
-    "sync:email-permission": "node src/scripts/sync-email-permission.js"
+    "sync:email-permission": "node src/scripts/sync-email-permission.js",
+    "sync:modules": "node src/scripts/sync-modules.js",
+    "sync:indexes": "node src/scripts/sync-indexes.js",
+    "sync:module-permissions": "node src/scripts/sync-module-permissions.js"
   },
   "keywords": [],
   "author": "",

@@ -3,6 +3,7 @@ import Role from '../models/Role.js';
 import School from '../models/School.js';
 import User from '../models/User.js';
 import ProcessDefinition from '../models/ProcessDefinition.js';
+import { DEFAULT_MODULES } from '../modules.js';
 
 // Defaults given to every newly onboarded school. All of it is editable
 // afterwards from the school's own admin UI (except the Super Admin role).
@@ -17,27 +18,27 @@ export const DEFAULT_ROLES = [
   {
     name: 'Owner',
     description: 'School owner',
-    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage', 'audit.view', 'email.view'],
+    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage', 'audit.view', 'email.view', 'students.view', 'students.manage', 'classes.manage', 'subjects.manage', 'exams.manage', 'results.enter', 'results.view', 'attendance.take', 'attendance.view', 'reports.issue', 'reports.view', 'comms.send', 'comms.view'],
   },
   {
     name: 'Proprietor',
     description: 'School proprietor',
-    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'audit.view', 'email.view'],
+    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'audit.view', 'email.view', 'students.view', 'students.manage', 'classes.manage', 'subjects.manage', 'exams.manage', 'results.view', 'attendance.view', 'reports.issue', 'reports.view', 'comms.send', 'comms.view'],
   },
   {
     name: 'Principal',
     description: 'Head of school',
-    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage', 'audit.view'],
+    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage', 'audit.view', 'students.view', 'students.manage', 'classes.manage', 'subjects.manage', 'exams.manage', 'results.enter', 'results.view', 'attendance.take', 'attendance.view', 'reports.issue', 'reports.view', 'comms.send', 'comms.view'],
   },
   {
     name: 'Admin',
     description: 'School administrator',
-    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage'],
+    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage', 'students.view', 'students.manage', 'classes.manage', 'subjects.manage', 'exams.manage', 'results.enter', 'results.view', 'attendance.take', 'attendance.view', 'reports.issue', 'reports.view', 'comms.send', 'comms.view'],
   },
   {
     name: 'Teacher',
     description: 'Teaching staff',
-    permissions: ['instances.initiate', 'instances.act'],
+    permissions: ['instances.initiate', 'instances.act', 'students.view', 'results.enter', 'results.view', 'attendance.take', 'attendance.view', 'reports.view'],
   },
 ];
 
@@ -130,6 +131,12 @@ export function defaultTemplates(roleMap) {
  * five starter process templates. Returns the role map by name.
  */
 export async function provisionSchool(school, { seedTemplates = true } = {}) {
+  // A school provisioned before the module field existed, or created without
+  // one, would otherwise have no modules and therefore no features at all.
+  if (!school.modules || school.modules.length === 0) {
+    school.modules = [...DEFAULT_MODULES];
+    await school.save();
+  }
   const roleMap = {};
   for (const r of DEFAULT_ROLES) {
     roleMap[r.name] = await Role.findOneAndUpdate(

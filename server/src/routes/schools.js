@@ -9,6 +9,7 @@ import { logAudit } from '../services/audit.js';
 import { sendWelcomeEmail } from '../services/welcome.js';
 import { notifySchoolApproved, notifySchoolRejected } from '../services/onboarding.js';
 import { httpError } from '../services/errors.js';
+import { MODULES, validateModuleSelection } from '../modules.js';
 
 const router = Router();
 router.use(requireAuth, requirePlatformAdmin);
@@ -55,6 +56,7 @@ router.get('/', async (req, res) => {
       submittedAt: s.submittedAt,
       reviewedAt: s.reviewedAt,
       active: s.active,
+      modules: s.modules,
       createdAt: s.createdAt,
       userCount: countMap.get(String(s._id)) || 0,
       admin: adminMap.get(String(s._id)) || null,
@@ -107,6 +109,36 @@ router.post('/', async (req, res) => {
     school,
     admin: { id: admin._id, name: admin.name, email: admin.email, mustChangePassword: admin.mustChangePassword },
   });
+});
+
+/** The module catalogue, so the console can render toggles without hardcoding. */
+router.get('/modules', (req, res) => {
+  res.json({
+    modules: MODULES.map((m) => ({
+      key: m.key, name: m.name, description: m.description,
+      requires: m.requires || [], defaultOn: m.defaultOn,
+    })),
+  });
+});
+
+/**
+ * Sets which feature modules a school has. Dependencies are enforced here
+ * rather than in the UI, so the rule holds however the endpoint is called.
+ */
+router.put('/:id/modules', async (req, res) => {
+  const school = await School.findById(req.params.id);
+  if (!school) throw httpError(404, 'School not found');
+
+  const { modules, error } = validateModuleSelection(req.body?.modules);
+  if (error) throw httpError(400, error);
+
+  const before = [...school.modules];
+  school.modules = modules;
+  await school.save();
+
+  logAudit(req.user, 'schools.set_modules', 'school', school._id,
+    { name: school.name, before, after: modules }, school._id);
+  res.json({ school });
 });
 
 router.put('/:id', async (req, res) => {

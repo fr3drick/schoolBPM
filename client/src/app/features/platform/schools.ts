@@ -13,7 +13,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api.service';
-import { School } from '../../core/models';
+import { ModuleDef, School } from '../../core/models';
 import { errorMessage } from '../../core/auth.interceptor';
 
 @Component({
@@ -199,6 +199,127 @@ export class ReviewSchoolDialogComponent {
 
 type SchoolTab = 'pending' | 'approved' | 'rejected' | 'all';
 
+
+/**
+ * Which feature modules a school has. Dependencies are enforced here for
+ * immediate feedback, and again on the server so the rule holds regardless
+ * of how the endpoint is reached.
+ */
+@Component({
+  selector: 'app-school-modules-dialog',
+  imports: [FormsModule, MatDialogModule, MatCheckboxModule, MatButtonModule, MatIconModule],
+  template: `
+    <h2 mat-dialog-title>Modules — {{ data.school.name }}</h2>
+    <mat-dialog-content class="content">
+      <p class="muted intro">
+        Switching a module off hides it from everyone at this school and blocks its API.
+        Data is kept, so switching it back on restores everything.
+      </p>
+      @for (m of data.catalogue; track m.key) {
+        <div class="module">
+          <mat-checkbox [checked]="selected.has(m.key)" (change)="toggle(m.key, $event.checked)">
+            <b>{{ m.name }}</b>
+          </mat-checkbox>
+          <div class="desc">{{ m.description }}</div>
+          @if (m.requires.length) {
+            <div class="requires">
+              <mat-icon inline>link</mat-icon>
+              Requires {{ nameOf(m.requires) }}
+            </div>
+          }
+          @if (selected.has(m.key) && cascadeFrom(m.key); as cascade) {
+            <div class="cascade">
+              <mat-icon inline>warning</mat-icon>
+              Switching this off also switches off {{ cascade }}
+            </div>
+          }
+        </div>
+      }
+      @if (error) { <div class="error">{{ error }}</div> }
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-button type="button" (click)="ref.close()">Cancel</button>
+      <button mat-flat-button color="primary" (click)="save()">Save modules</button>
+    </mat-dialog-actions>
+  `,
+  styles: `
+    .content { display: flex; flex-direction: column; min-width: 460px; padding-top: 8px; }
+    .intro { font-size: 13px; line-height: 1.5; margin: 0 0 16px; }
+    .module { border: 1px solid #e3e7ea; border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
+    .desc { font-size: 13px; color: #637381; margin: 4px 0 0 32px; line-height: 1.45; }
+    .requires { font-size: 12px; color: #b26a00; margin: 6px 0 0 32px; }
+    .requires mat-icon { font-size: 14px; width: 14px; height: 14px; vertical-align: -2px; }
+    .cascade { font-size: 12px; color: #c62828; margin: 6px 0 0 32px; }
+    .cascade mat-icon { font-size: 14px; width: 14px; height: 14px; vertical-align: -2px; }
+    .error { color: #c62828; background: #ffebee; border-radius: 6px; padding: 10px 12px; font-size: 13px; }
+  `,
+})
+export class SchoolModulesDialogComponent {
+  selected = new Set<string>();
+  error = '';
+
+  constructor(
+    public ref: MatDialogRef<SchoolModulesDialogComponent, string[]>,
+    @Inject(MAT_DIALOG_DATA) public data: { school: School; catalogue: ModuleDef[] }
+  ) {
+    this.selected = new Set(data.school.modules || []);
+  }
+
+  nameOf(keys: string[]): string {
+    return keys.map((k) => this.data.catalogue.find((m) => m.key === k)?.name || k).join(', ');
+  }
+
+  /** Everything `key` needs, following the chain to the end. */
+  private requirementsOf(key: string, seen = new Set<string>()): Set<string> {
+    const mod = this.data.catalogue.find((m) => m.key === key);
+    for (const dep of mod?.requires || []) {
+      if (seen.has(dep)) continue;
+      seen.add(dep);
+      this.requirementsOf(dep, seen);
+    }
+    return seen;
+  }
+
+  /** Everything that would be stranded if `key` were switched off. */
+  private dependentsOf(key: string, seen = new Set<string>()): Set<string> {
+    for (const m of this.data.catalogue) {
+      if (seen.has(m.key)) continue;
+      if (m.requires.includes(key)) {
+        seen.add(m.key);
+        this.dependentsOf(m.key, seen);
+      }
+    }
+    return seen;
+  }
+
+  toggle(key: string, on: boolean) {
+    this.error = '';
+    if (on) {
+      this.selected.add(key);
+      // Pull in what this module needs rather than rejecting the click —
+      // the whole chain, so enabling report cards also brings in exams and
+      // the students module underneath them.
+      for (const dep of this.requirementsOf(key)) this.selected.add(dep);
+    } else {
+      this.selected.delete(key);
+      // Anything depending on it cannot stay on, however far down the chain:
+      // switching students off strands exams, and exams being off strands
+      // report cards.
+      for (const dep of this.dependentsOf(key)) this.selected.delete(dep);
+    }
+  }
+
+  /** Named in the dialog so the cascade is visible before it is saved. */
+  cascadeFrom(key: string): string {
+    const dependents = [...this.dependentsOf(key)].filter((k) => this.selected.has(k));
+    return this.nameOf(dependents);
+  }
+
+  save() {
+    this.ref.close([...this.selected]);
+  }
+}
+
 @Component({
   selector: 'app-schools',
   imports: [
@@ -276,6 +397,11 @@ type SchoolTab = 'pending' | 'approved' | 'rejected' | 'all';
               @if (s.status === 'approved') {
                 <mat-slide-toggle [checked]="s.active" (change)="toggle(s, $event.checked)"
                                   matTooltip="Suspend or reactivate this school" />
+                <button mat-icon-button (click)="editModules(s)"
+                        matTooltip="Which modules this school has"
+                        aria-label="Edit modules">
+                  <mat-icon>tune</mat-icon>
+                </button>
               } @else {
                 <button mat-stroked-button color="primary" (click)="review(s)">
                   {{ s.status === 'pending' ? 'Review' : 'Reconsider' }}
@@ -327,6 +453,7 @@ export class SchoolsComponent {
   ];
 
   schools = signal<School[]>([]);
+  catalogue = signal<ModuleDef[]>([]);
   pendingCount = signal(0);
   loaded = signal(false);
   filter = signal<SchoolTab>('approved');
@@ -348,6 +475,7 @@ export class SchoolsComponent {
 
   constructor() {
     this.reload();
+    this.api.moduleCatalogue().subscribe((res) => this.catalogue.set(res.modules));
   }
 
   countFor(key: string): number {
@@ -368,6 +496,22 @@ export class SchoolsComponent {
 
   onTab(index: number) {
     this.filter.set(this.tabs[index].key);
+  }
+
+  editModules(school: School) {
+    this.dialog
+      .open(SchoolModulesDialogComponent, { data: { school, catalogue: this.catalogue() } })
+      .afterClosed()
+      .subscribe((modules) => {
+        if (!modules) return;
+        this.api.setSchoolModules(school._id, modules).subscribe({
+          next: () => {
+            this.snack.open(`Modules updated for ${school.name}`, 'OK', { duration: 3000 });
+            this.reload();
+          },
+          error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 5000 }),
+        });
+      });
   }
 
   reload() {

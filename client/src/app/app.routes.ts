@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, awaitingReviewGuard, permGuard, platformGuard } from './core/guards';
+import { authGuard, awaitingReviewGuard, moduleGuard, permGuard, platformGuard } from './core/guards';
 
 export const routes: Routes = [
   { path: 'login', loadComponent: () => import('./features/login/login').then((m) => m.LoginComponent) },
@@ -99,6 +99,54 @@ export const routes: Routes = [
         canActivate: [permGuard],
         data: { perms: ['email.view'] },
         loadComponent: () => import('./features/admin/emails/emails').then((m) => m.EmailsComponent),
+      },
+      {
+        path: 'students',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'students', perms: ['students.view', 'students.manage'] },
+        loadComponent: () => import('./features/students/students').then((m) => m.StudentsComponent),
+      },
+      {
+        path: 'classes',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'students', perms: ['classes.manage', 'students.view'] },
+        loadComponent: () => import('./features/classes/classes').then((m) => m.ClassesComponent),
+      },
+      {
+        path: 'subjects',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'students', perms: ['subjects.manage', 'students.view'] },
+        loadComponent: () => import('./features/subjects/subjects').then((m) => m.SubjectsComponent),
+      },
+      {
+        path: 'exams',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'exams', perms: ['exams.manage', 'results.enter', 'results.view'] },
+        loadComponent: () => import('./features/exams/exams').then((m) => m.ExamsComponent),
+      },
+      {
+        path: 'exams/:id',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'exams', perms: ['exams.manage', 'results.enter', 'results.view'] },
+        loadComponent: () => import('./features/exams/exam-results').then((m) => m.ExamResultsComponent),
+      },
+      {
+        path: 'attendance',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'attendance', perms: ['attendance.take', 'attendance.view'] },
+        loadComponent: () => import('./features/attendance/attendance').then((m) => m.AttendanceComponent),
+      },
+      {
+        path: 'reports',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'reports', perms: ['reports.issue', 'reports.view'] },
+        loadComponent: () => import('./features/reports/reports').then((m) => m.ReportsComponent),
+      },
+      {
+        path: 'communications',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'communications', perms: ['comms.send', 'comms.view'] },
+        loadComponent: () => import('./features/communications/communications').then((m) => m.CommunicationsComponent),
       },
       {
         path: 'audit',

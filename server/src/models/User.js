@@ -52,6 +52,9 @@ userSchema.methods.toProfile = function () {
             status: school.status,
             rejectionReason: school.rejectionReason || '',
             submittedAt: school.submittedAt,
+            // Drives which nav items and routes the client offers: a feature
+            // whose module is off must not be reachable in the UI either.
+            modules: school.modules || [],
           }
         : school,
     role:

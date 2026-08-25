@@ -24,6 +24,8 @@ export interface SchoolRef {
   status?: SchoolStatus;
   rejectionReason?: string;
   submittedAt?: string | null;
+  /** Feature modules the platform has enabled for this school. */
+  modules?: string[];
 }
 
 export interface School {
@@ -45,6 +47,7 @@ export interface School {
   reviewedAt?: string | null;
   active: boolean;
   userCount?: number;
+  modules?: string[];
   createdAt: string;
   /** The Super Admin who registered or was provisioned for the school. */
   admin?: { name: string; email: string } | null;
@@ -199,4 +202,177 @@ export interface EmailCounts {
   sent: number;
   failed: number;
   skipped: number;
+}
+
+// ---- modules ----
+
+export interface ModuleDef {
+  key: string;
+  name: string;
+  description: string;
+  requires: string[];
+  defaultOn: boolean;
+}
+
+// ---- students, classes, subjects ----
+
+export type StudentStatus = 'active' | 'graduated' | 'withdrawn';
+
+export interface Guardian {
+  name: string;
+  relationship?: string;
+  email?: string;
+  phone?: string;
+  isPrimary?: boolean;
+}
+
+export interface ClassRef {
+  _id: string;
+  name: string;
+}
+
+export interface SchoolClass {
+  _id: string;
+  name: string;
+  level?: string;
+  academicYear?: string;
+  formTeacher?: { id?: string; _id?: string; name: string; email: string } | string | null;
+  active: boolean;
+  studentCount?: number;
+}
+
+export interface Subject {
+  _id: string;
+  name: string;
+  code?: string;
+  active: boolean;
+}
+
+export interface Student {
+  _id: string;
+  admissionNumber: string;
+  firstName: string;
+  lastName: string;
+  otherNames?: string;
+  dateOfBirth?: string | null;
+  gender?: string;
+  class?: ClassRef | string | null;
+  guardians: Guardian[];
+  status: StudentStatus;
+  notes?: string;
+  createdAt?: string;
+}
+
+/** Outcome of a bulk import, reported per row so failures are actionable. */
+export interface ImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: { row: number; message: string }[];
+}
+
+export type ExamStatus = 'draft' | 'open' | 'published';
+export type Term = 'first' | 'second' | 'third';
+
+/** Always populated: every exam the API returns has its subject expanded. */
+export interface ExamSubject {
+  subject: Subject;
+  maxScore: number;
+}
+
+export interface Exam {
+  _id: string;
+  /** Always populated by the API, never a bare id. */
+  class: ClassRef;
+  session: string;
+  term: Term;
+  name?: string;
+  label?: string;
+  subjects: ExamSubject[];
+  status: ExamStatus;
+  publishCount?: number;
+  publishedAt?: string | null;
+  /** Progress, supplied by the list endpoint only. */
+  entered?: number;
+  expected?: number;
+  roll?: number;
+}
+
+/** One student's row in the results grid. */
+export interface ResultRow {
+  student: string;
+  admissionNumber: string;
+  name: string;
+  guardianCount: number;
+  scores: { subject: string; score: number | null; grade: string }[];
+  total: number;
+  average: number;
+  passed: number;
+  count: number;
+  position: number | null;
+}
+
+export interface PublishOutcome {
+  queued: number;
+  guardians: number;
+  students: number;
+  withoutResults: number;
+  withoutGuardian: number;
+}
+
+export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused';
+
+export interface RegisterRecord {
+  student: string;
+  admissionNumber: string;
+  name: string;
+  status: AttendanceStatus;
+  note: string;
+}
+
+export interface Register {
+  class: ClassRef;
+  date: string;
+  taken: boolean;
+  takenAt: string | null;
+  records: RegisterRecord[];
+}
+
+export interface AttendanceSummaryRow {
+  student: string;
+  admissionNumber: string;
+  name: string;
+  sessions: number;
+  present: number;
+  late: number;
+  absent: number;
+  excused: number;
+  rate: number;
+}
+
+export type Audience = 'staff' | 'guardians' | 'class_guardians';
+
+export interface Announcement {
+  _id: string;
+  subject: string;
+  body: string;
+  audience: Audience;
+  class?: ClassRef | null;
+  sentByName: string;
+  recipients: number;
+  skipped: number;
+  createdAt: string;
+}
+
+/** One student's readiness for a report card. */
+export interface ReportCardRow {
+  student: string;
+  admissionNumber: string;
+  name: string;
+  subjects: number;
+  average: number;
+  position: number | null;
+  attendanceRate: number | null;
+  guardianCount: number;
+  ready: boolean;
 }

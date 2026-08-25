@@ -32,7 +32,12 @@ router.get('/', permit('roles.manage', 'users.manage', 'definitions.manage'), as
 });
 
 router.get('/permissions', permit('roles.manage'), (req, res) => {
-  res.json({ permissions: PERMISSIONS });
+  // Only permissions whose module the school actually has. Granting a right
+  // that silently does nothing is worse than not offering it.
+  const enabled = req.user.school?.modules || [];
+  res.json({
+    permissions: PERMISSIONS.filter((p) => !p.module || enabled.includes(p.module)),
+  });
 });
 
 function cleanPermissions(perms) {

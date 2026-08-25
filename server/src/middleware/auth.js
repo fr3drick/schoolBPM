@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { getModule } from '../modules.js';
 
 // Reachable whatever state the account or its school is in: without these a
 // user who must change their password, or whose school is still under review,
@@ -63,6 +64,28 @@ export function hasPerm(user, perm) {
 export function requirePlatformAdmin(req, res, next) {
   if (req.user?.isPlatformAdmin) return next();
   return res.status(403).json({ error: 'Platform administrator access required' });
+}
+
+/**
+ * Gates a router on a feature module being enabled for the caller's school.
+ *
+ * Distinct from `permit`: a missing permission is the user's account, a
+ * disabled module is what the school has been given. Saying "you do not have
+ * permission" for the latter sends an admin hunting through roles for a
+ * setting that was never theirs, so this answers differently and names the
+ * module so the UI can say something useful.
+ */
+export function requireModule(key) {
+  return (req, res, next) => {
+    // Platform staff hold no school; their own routes are never module-gated.
+    if (req.user?.isPlatformAdmin) return next();
+    const enabled = req.user?.school?.modules || [];
+    if (enabled.includes(key)) return next();
+    return res.status(403).json({
+      error: `The ${getModule(key)?.name || key} module is not enabled for your school.`,
+      module: key,
+    });
+  };
 }
 
 // School-scoped routes: rejects platform staff, who belong to no school.

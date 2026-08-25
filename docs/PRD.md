@@ -95,8 +95,9 @@ five ready-made school processes.
 ## 7. Functional requirements
 
 FR-1 to FR-36 shipped in **v1.0**. FR-37 to FR-40 are the **v1.1** additions covered by
-§7.10, and FR-41 to FR-50 the **v1.2** self-onboarding scope in §7.11; the wider release
-plan is in §11.
+§7.10, FR-41 to FR-50 the **v1.2** self-onboarding scope in §7.11, and FR-51 to FR-67 the
+**v1.3** module system and school-management modules in §7.12–7.14; the wider release plan
+is in §11.
 
 ### 7.1 Authentication & accounts
 
@@ -113,7 +114,7 @@ plan is in §11.
 | ID | Requirement | Priority |
 |---|---|---|
 | FR-6 | Roles are data — name, description, permission set — created and edited in the UI | P0 |
-| FR-7 | Permission catalogue: `users.manage`, `roles.manage`, `definitions.manage`, `instances.initiate`, `instances.act`, `instances.view_all`, `audit.view` | P0 |
+| FR-7 | Permission catalogue: `users.manage`, `roles.manage`, `definitions.manage`, `instances.initiate`, `instances.act`, `instances.view_all`, `audit.view`, `email.view`, plus the per-module permissions in §7.12 | P0 |
 | FR-8 | Every API endpoint enforces permissions server-side; navigation and screens are filtered by the same permissions | P0 |
 | FR-9 | The Super Admin role is system-locked: not editable, not deletable, and holds only `users.manage` + `roles.manage` — structurally excluded from every process feature | P0 |
 | FR-10 | A role cannot be deleted while users hold it or a process references it | P0 |
@@ -222,6 +223,41 @@ when an address already has an account. A signup form that answers "check your e
 address that will never receive a code traps the honest majority — someone who forgot they
 already have an account — and the code step that follows makes the pretence impossible to
 sustain. The rate limits in FR-50 are what stop the endpoint becoming a bulk address oracle.
+
+### 7.12 Feature modules
+
+Until now the product was one thing: approval workflows. FR-51 to FR-63 turn it into a
+school platform assembled from **modules**, of which the workflow engine becomes one.
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-51 | A module catalogue lives in code; each school's enabled set lives in data. Modules ship as `workflow`, `students`, `exams`, `attendance`, `reports` and `communications`; `workflow` and `students` are on by default | P0 |
+| FR-52 | Only the platform admin decides a school's modules, from the platform console. A school cannot enable its own | P0 |
+| FR-53 | Modules and permissions are **independent gates**: a user needs both the module enabled for their school and the permission on their role. A disabled module answers 403 with a `module` key and a message naming it, distinct from a permission refusal, so an administrator can tell a packaging problem from an account one | P0 |
+| FR-54 | Modules declare dependencies. Enabling one pulls in everything it needs, and **switching one off switches off everything that depends on it, transitively** — turning off Students & classes also turns off Exams, Attendance and the Report cards that stand on them. The console names what a toggle will take with it before it is saved, and the server enforces the same rule however the endpoint is called | P0 |
+| FR-55 | Account administration — sign-in, users, roles, notifications, dashboard — is never module-gated. A school must always be able to administer itself | P0 |
+| FR-56 | Switching a module off hides it and closes its API; it never deletes data. Switching it back on restores everything intact | P0 |
+| FR-57 | The roles screen hides permissions belonging to disabled modules, so nobody is granted a right that silently does nothing | P1 |
+
+### 7.13 Exams & results
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-58 | An exam is one per class per term per session, carrying the subjects it covers and each subject's maximum score. Its lifecycle is `draft → open → published`, with `published → open` available to correct a mistake | P0 |
+| FR-59 | Marks may be entered only while an exam is open, by a user holding `results.enter`, as a students × subjects grid. A score above the subject maximum or below zero is refused, and a cell can be cleared as well as overwritten | P0 |
+| FR-60 | Grades are derived from a fixed percentage scale and **stored on the result when it is entered**, so a later change to the scale cannot restate grades already issued. Positions use standard competition ranking, and only students with marks are ranked | P0 |
+| FR-61 | Publishing an exam emails each guardian their own child's results — subjects, grades, average, subjects passed and position — through the existing durable outbox, so a slow mail provider cannot make publishing fail halfway through a class. A student with no guardian address or no marks is reported in the outcome and skipped, never fatal | P0 |
+| FR-62 | Re-publishing after a correction sends a fresh message rather than colliding with the first on the dedupe key and going silently undelivered | P0 |
+| FR-63 | A result sheet, and a termly report card combining results with attendance and the class average, are downloadable as one-page A4 PDFs | P1 |
+
+### 7.14 Attendance, report cards and communications
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-64 | A daily register per class, defaulting every pupil to present so the teacher marks only the exceptions, with `present`, `late`, `absent` and `excused` and an optional reason. Re-taking a register replaces it rather than duplicating it | P1 |
+| FR-65 | Attendance rates are computed from the registers on read, never kept as a counter that could drift from them. `late` counts as attending | P1 |
+| FR-66 | Report cards combine an exam's results with the term's attendance and the class average; the module requires both Exams and Attendance | P1 |
+| FR-67 | Announcements can be sent to all staff, all guardians, or the guardians of one class, through the outbox. A guardian with several children at the school receives one copy, not one per child, and the recipient count is shown before sending | P1 |
 
 ## 8. Non-functional requirements
 
