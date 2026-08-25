@@ -1,4 +1,4 @@
-import { Component, Inject, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Inject, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
@@ -69,6 +69,7 @@ import { errorMessage } from '../../core/auth.interceptor';
     }
     .seed { margin: 4px 0 8px; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OnboardSchoolDialogComponent {
   name = '';
@@ -182,6 +183,7 @@ export class OnboardSchoolDialogComponent {
     .prior { background: #ffebee; color: #8e2020; border-radius: 6px; padding: 10px 12px; font-size: 13px; margin-top: 16px; line-height: 1.5; }
     .reason { margin-top: 18px; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReviewSchoolDialogComponent {
   rejecting = signal(false);
@@ -253,6 +255,7 @@ type SchoolTab = 'pending' | 'approved' | 'rejected' | 'all';
     .cascade mat-icon { font-size: 14px; width: 14px; height: 14px; vertical-align: -2px; }
     .error { color: #c62828; background: #ffebee; border-radius: 6px; padding: 10px 12px; font-size: 13px; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SchoolModulesDialogComponent {
   selected = new Set<string>();
@@ -439,6 +442,7 @@ export class SchoolModulesDialogComponent {
     .status-chip.pending { background: #fff8e1; color: #b26a00; }
     .why { font-size: 16px; width: 16px; height: 16px; color: #b0bec5; vertical-align: middle; margin-left: 4px; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SchoolsComponent {
   private api = inject(ApiService);

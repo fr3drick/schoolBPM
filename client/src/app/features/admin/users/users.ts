@@ -1,4 +1,4 @@
-import { Component, Inject, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Inject, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
@@ -17,6 +17,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../../core/api.service';
 import { Role, UserProfile } from '../../../core/models';
 import { errorMessage } from '../../../core/auth.interceptor';
+import { LoadingBarComponent } from '../../../shared/loading-bar';
 
 interface UserDialogData {
   user: UserProfile | null;
@@ -66,6 +67,7 @@ interface UserDialogData {
     .content { display: flex; flex-direction: column; min-width: 380px; padding-top: 8px; }
     .mc { margin-bottom: 8px; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UserDialogComponent {
   name = '';
@@ -113,6 +115,7 @@ export class UserDialogComponent {
       <button mat-flat-button color="primary" [disabled]="password.length < 8" (click)="ref.close(password)">Reset</button>
     </mat-dialog-actions>
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PasswordDialogComponent {
   password = '';
@@ -124,7 +127,10 @@ export class PasswordDialogComponent {
 
 @Component({
   selector: 'app-users',
-  imports: [DatePipe, MatTableModule, MatIconModule, MatButtonModule, MatMenuModule, MatTooltipModule, MatDialogModule],
+  imports: [
+    DatePipe, MatTableModule, MatIconModule, MatButtonModule, MatMenuModule,
+    MatTooltipModule, MatDialogModule, LoadingBarComponent,
+  ],
   template: `
     <div class="page">
       <div class="page-header">
@@ -136,6 +142,7 @@ export class PasswordDialogComponent {
       </div>
 
       <div class="table-card">
+        <app-loading-bar [active]="loading()" />
         <table mat-table [dataSource]="users()">
           <ng-container matColumnDef="name">
             <th mat-header-cell *matHeaderCellDef>Name</th>
@@ -191,6 +198,7 @@ export class PasswordDialogComponent {
     .hint-icon { font-size: 16px; width: 16px; height: 16px; vertical-align: -3px; margin-left: 6px; color: #b26a00; }
     .actions-cell { text-align: right; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UsersComponent {
   private api = inject(ApiService);
@@ -199,6 +207,7 @@ export class UsersComponent {
 
   users = signal<UserProfile[]>([]);
   roles = signal<Role[]>([]);
+  loading = signal(false);
   columns = ['name', 'email', 'role', 'status', 'created', 'actions'];
 
   constructor() {
@@ -207,7 +216,14 @@ export class UsersComponent {
   }
 
   reload() {
-    this.api.users().subscribe((res) => this.users.set(res.users));
+    this.loading.set(true);
+    this.api.users().subscribe({
+      next: (res) => {
+        this.users.set(res.users);
+        this.loading.set(false);
+      },
+      error: () => this.loading.set(false),
+    });
   }
 
   openDialog(user: UserProfile | null) {

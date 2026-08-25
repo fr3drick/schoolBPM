@@ -1,16 +1,30 @@
-import { Component, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatTableModule } from '@angular/material/table';
 import { MatIconModule } from '@angular/material/icon';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { ProcessInstance } from '../core/models';
 import { StatusChipComponent } from './status-chip';
 
 @Component({
   selector: 'app-instance-list',
-  imports: [DatePipe, MatTableModule, MatIconModule, StatusChipComponent],
+  imports: [
+    DatePipe, MatTableModule, MatIconModule, MatPaginatorModule,
+    MatProgressBarModule, StatusChipComponent,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (instances().length === 0) {
+    <div class="loading-slot">
+      @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
+    </div>
+    @if (!loaded()) {
+      <div class="empty-state">
+        <mat-icon>hourglass_empty</mat-icon>
+        <div>Loading…</div>
+      </div>
+    } @else if (instances().length === 0) {
       <div class="empty-state">
         <mat-icon>inbox</mat-icon>
         <div>{{ emptyMessage() }}</div>
@@ -52,10 +66,27 @@ import { StatusChipComponent } from './status-chip';
         <tr mat-row *matRowDef="let row; columns: columns()" class="clickable-row" (click)="open(row)"></tr>
       </table>
     }
+    <!-- Only when the host page passes a total. Pages that show a fixed short
+         list (the dashboard's five most recent) leave it off. -->
+    @if (loaded() && paged()) {
+      <mat-paginator
+        [length]="total()"
+        [pageSize]="pageSize()"
+        [pageIndex]="pageIndex()"
+        [pageSizeOptions]="[25, 50, 100]"
+        (page)="page.emit($event)"
+        aria-label="Select page of requests"
+      />
+    }
   `,
   styles: `
     :host { display: block; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
     .ref-cell { font-weight: 500; white-space: nowrap; }
+    .loading-slot { height: 4px; }
+    @media (max-width: 719px) {
+      :host { overflow-x: auto; }
+      table { min-width: 680px; }
+    }
   `,
 })
 export class InstanceListComponent {
@@ -63,6 +94,16 @@ export class InstanceListComponent {
   instances = input.required<ProcessInstance[]>();
   showInitiator = input(false);
   emptyMessage = input('Nothing here yet');
+
+  /** Pages that fetch their own data pass these; a fixed list omits them. */
+  loading = input(false);
+  loaded = input(true);
+  total = input<number | null>(null);
+  pageIndex = input(0);
+  pageSize = input(50);
+  page = output<PageEvent>();
+
+  paged = computed(() => this.total() !== null && this.total()! > 0);
 
   columns() {
     return this.showInitiator()

@@ -1,16 +1,17 @@
-import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, linkedSignal, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatDrawerMode, MatSidenavModule } from '@angular/material/sidenav';
 import { MatListModule } from '@angular/material/list';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatDividerModule } from '@angular/material/divider';
-import { interval, startWith, switchMap } from 'rxjs';
+import { fromEvent, interval, map, merge, filter, startWith, switchMap } from 'rxjs';
 import { AuthService } from '../core/auth.service';
 import { ApiService } from '../core/api.service';
 import { AppNotification } from '../core/models';
@@ -31,7 +32,12 @@ interface NavItem {
   ],
   template: `
     <mat-sidenav-container class="container">
-      <mat-sidenav mode="side" [opened]="sidenavOpen()" class="sidenav">
+      <mat-sidenav
+        [mode]="sidenavMode()"
+        [opened]="sidenavOpen()"
+        (openedChange)="sidenavOpen.set($event)"
+        class="sidenav"
+      >
         <div class="brand">
           <mat-icon>school</mat-icon>
           <span>School BPM</span>
@@ -44,7 +50,8 @@ interface NavItem {
         <mat-nav-list>
           @for (item of mainNav(); track item.link) {
             <a mat-list-item [routerLink]="item.link" routerLinkActive="active-link"
-               [routerLinkActiveOptions]="{ exact: item.exact ?? false }">
+               [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
+               (click)="closeIfOverlay()">
               <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
               <span matListItemTitle>{{ item.label }}</span>
             </a>
@@ -53,7 +60,8 @@ interface NavItem {
             <mat-divider />
             <div class="nav-section">Administration</div>
             @for (item of adminNav(); track item.link) {
-              <a mat-list-item [routerLink]="item.link" routerLinkActive="active-link">
+              <a mat-list-item [routerLink]="item.link" routerLinkActive="active-link"
+               (click)="closeIfOverlay()">
                 <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
                 <span matListItemTitle>{{ item.label }}</span>
               </a>
@@ -97,7 +105,7 @@ interface NavItem {
 
           <button mat-button [matMenuTriggerFor]="userMenu" class="user-btn">
             <mat-icon>account_circle</mat-icon>
-            {{ auth.user()?.name }}
+            <span class="user-name-inline">{{ auth.user()?.name }}</span>
           </button>
           <mat-menu #userMenu="matMenu" xPosition="before">
             <div class="user-info" (click)="$event.stopPropagation()">
@@ -146,7 +154,16 @@ interface NavItem {
     .notif-item.unread { border-left-color: #1565c0; background: #f5f9ff; }
     .notif-message { white-space: normal; max-width: 340px; font-size: 13px; }
     .notif-time { font-size: 11px; color: #90a4ae; margin-top: 2px; }
+    .user-btn .mat-mdc-button-touch-target { width: auto; }
+    @media (max-width: 599px) {
+      /* The name is the first thing to go: the toolbar has to keep the menu
+         button, the notification bell and the avatar at a tappable size. */
+      .user-btn { min-width: 0; padding: 0 8px; }
+      .user-btn .user-name-inline { display: none; }
+      .notif-header, .notif-message { max-width: 78vw; min-width: 0; }
+    }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ShellComponent {
   readonly auth = inject(AuthService);
@@ -154,9 +171,27 @@ export class ShellComponent {
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
 
-  sidenavOpen = signal(true);
+  // 960px is Material's own small/medium boundary. Below it the drawer floats
+  // over the content instead of squeezing it — a 240px rail on a 360px phone
+  // leaves 120px of page.
+  private handset = toSignal(
+    inject(BreakpointObserver)
+      .observe('(max-width: 959.98px)')
+      .pipe(map((state) => state.matches)),
+    { initialValue: false }
+  );
+
+  sidenavMode = computed<MatDrawerMode>(() => (this.handset() ? 'over' : 'side'));
+
+  // linkedSignal, not computed: the toolbar button still writes to it, but a
+  // change of breakpoint resets it — so rotating a phone or dragging a window
+  // narrow closes the drawer instead of leaving it pinned across the content.
+  sidenavOpen = linkedSignal(() => !this.handset());
+
   notifications = signal<AppNotification[]>([]);
   unread = signal(0);
+  /** When the notification list was last fetched, to avoid refetching on every menu open. */
+  private fetchedAt = signal(0);
 
   mainNav = computed<NavItem[]>(() => {
     if (this.auth.isPlatformAdmin()) {
@@ -213,22 +248,42 @@ export class ShellComponent {
   });
 
   constructor() {
-    interval(30000)
-      .pipe(startWith(0), switchMap(() => this.api.notifications()), takeUntilDestroyed(this.destroyRef))
+    // Poll only while the tab is in front. A background tab used to keep a
+    // request every 30s running for the whole working day, which on a phone
+    // over mobile data is the app's single largest source of traffic and of
+    // radio wake-ups. Coming back to the tab refetches immediately, so the
+    // badge is never stale on the screen the user is actually looking at.
+    const visible = () => document.visibilityState === 'visible';
+
+    merge(interval(30000), fromEvent(document, 'visibilitychange'))
+      .pipe(
+        startWith(0),
+        filter(visible),
+        switchMap(() => this.api.notifications()),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
-        next: (res) => {
-          this.notifications.set(res.notifications);
-          this.unread.set(res.unread);
-        },
+        next: (res) => this.applyNotifications(res),
         error: () => {},
       });
   }
 
+  private applyNotifications(res: { notifications: AppNotification[]; unread: number }) {
+    this.notifications.set(res.notifications);
+    this.unread.set(res.unread);
+    this.fetchedAt.set(Date.now());
+  }
+
   onNotifOpened() {
-    this.api.notifications().subscribe((res) => {
-      this.notifications.set(res.notifications);
-      this.unread.set(res.unread);
-    });
+    // The poll already keeps this within 30s; opening the menu a second time
+    // to re-read the same list is a wasted round trip.
+    if (Date.now() - this.fetchedAt() < 15000) return;
+    this.api.notifications().subscribe((res) => this.applyNotifications(res));
+  }
+
+  /** On a phone the drawer covers the page, so following a link has to close it. */
+  closeIfOverlay() {
+    if (this.sidenavMode() === 'over') this.sidenavOpen.set(false);
   }
 
   markAllRead() {

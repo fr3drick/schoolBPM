@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -9,6 +9,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
+import { MatDialog } from '@angular/material/dialog';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -17,6 +19,8 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { AttendanceStatus, AttendanceSummaryRow, RegisterRecord, SchoolClass } from '../../core/models';
 import { errorMessage } from '../../core/auth.interceptor';
+import { confirmDialog } from '../../shared/confirm-dialog';
+import { HasUnsavedChanges, warnBeforeUnload } from '../../core/unsaved-changes';
 
 const STATUSES: { value: AttendanceStatus; label: string; icon: string }[] = [
   { value: 'present', label: 'Present', icon: 'check' },
@@ -31,6 +35,7 @@ const STATUSES: { value: AttendanceStatus; label: string; icon: string }[] = [
     DatePipe, FormsModule, MatButtonModule, MatButtonToggleModule, MatIconModule,
     MatFormFieldModule, MatInputModule, MatSelectModule, MatDatepickerModule,
     MatNativeDateModule, MatTabsModule, MatTableModule, MatTooltipModule,
+    MatProgressBarModule,
   ],
   template: `
     <div class="page">
@@ -47,7 +52,7 @@ const STATUSES: { value: AttendanceStatus; label: string; icon: string }[] = [
             <div class="filters">
               <mat-form-field appearance="outline">
                 <mat-label>Class</mat-label>
-                <mat-select [(ngModel)]="klass" (selectionChange)="loadRegister()">
+                <mat-select [ngModel]="pendingClass()" (ngModelChange)="switchClass($event)">
                   @for (c of classes(); track c._id) {
                     <mat-option [value]="c._id">{{ c.name }}</mat-option>
                   }
@@ -55,16 +60,20 @@ const STATUSES: { value: AttendanceStatus; label: string; icon: string }[] = [
               </mat-form-field>
               <mat-form-field appearance="outline">
                 <mat-label>Date</mat-label>
-                <input matInput [matDatepicker]="picker" [max]="today" [(ngModel)]="date"
-                       (dateChange)="loadRegister()" />
+                <input matInput [matDatepicker]="picker" [max]="today" [ngModel]="pendingDate()"
+                       (ngModelChange)="switchDate($event)" />
                 <mat-datepicker-toggle matIconSuffix [for]="picker" />
                 <mat-datepicker #picker />
               </mat-form-field>
               <span class="spacer"></span>
               @if (records().length && canTake()) {
                 <button mat-stroked-button (click)="markAll('present')">Mark all present</button>
-                <button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
-                  <mat-icon>save</mat-icon> Save register
+                <!-- Disabled when nothing has changed, so the button says
+                     whether there is anything to save rather than always
+                     inviting a pointless write. -->
+                <button mat-flat-button color="primary" (click)="save()" [disabled]="saving() || !dirty()">
+                  <mat-icon>save</mat-icon>
+                  {{ dirty() ? 'Save register' : 'Saved' }}
                 </button>
               }
             </div>
@@ -76,6 +85,9 @@ const STATUSES: { value: AttendanceStatus; label: string; icon: string }[] = [
               </div>
             }
 
+            <div class="loading-slot">
+              @if (loadingRegister()) { <mat-progress-bar mode="indeterminate" /> }
+            </div>
             <div class="table-card">
               @if (!records().length) {
                 <div class="empty-state">
@@ -187,6 +199,7 @@ const STATUSES: { value: AttendanceStatus; label: string; icon: string }[] = [
     </div>
   `,
   styles: `
+    .loading-slot { height: 4px; }
     .page { padding: 24px 28px; max-width: 1080px; }
     .page-head { margin-bottom: 10px; }
     h1 { margin: 0; font-size: 24px; font-weight: 600; }
@@ -223,10 +236,12 @@ const STATUSES: { value: AttendanceStatus; label: string; icon: string }[] = [
     .empty-state { padding: 56px 20px; text-align: center; color: #90a4ae; }
     .empty-state mat-icon { font-size: 42px; width: 42px; height: 42px; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AttendanceComponent {
+export class AttendanceComponent implements HasUnsavedChanges {
   private api = inject(ApiService);
   private auth = inject(AuthService);
+  private dialog = inject(MatDialog);
   private snack = inject(MatSnackBar);
 
   statuses = STATUSES;
@@ -239,19 +254,43 @@ export class AttendanceComponent {
   taken = signal(false);
   takenAt = signal<string | null>(null);
   saving = signal(false);
+  loadingRegister = signal(false);
 
+  /**
+   * The register as the server last gave it to us. Comparing against this is
+   * what lets the page know whether leaving would throw work away — there is
+   * no per-cell dirty flag because the register is saved whole.
+   */
+  private pristine = signal('');
+
+  /**
+   * `klass`/`date` are the register on screen; `pendingClass`/`pendingDate` are
+   * what the controls show.
+   *
+   * They are separate because a mat-select updates itself the moment it is
+   * clicked. Binding the control straight to the committed value leaves the
+   * dropdown reading "JSS2" while the register underneath is still JSS1's if
+   * the teacher answers "Keep editing" — and Angular will not rewrite a value
+   * that never changed. Reverting the pending signal is a real change, so the
+   * control follows it back.
+   */
   klass = signal('');
   date = signal(new Date());
+  pendingClass = signal('');
+  pendingDate = signal(new Date());
   summaryClass = signal('');
 
   canTake = computed(() => this.auth.hasPerm('attendance.take'));
+  dirty = computed(() => this.canTake() && this.snapshot(this.records()) !== this.pristine());
   summaryColumns = ['name', 'rate', 'present', 'late', 'absent', 'excused', 'sessions'];
 
   constructor() {
+    warnBeforeUnload(() => this.dirty());
     this.api.classes().subscribe((r) => {
       this.classes.set(r.classes);
       if (r.classes.length) {
         this.klass.set(r.classes[0]._id);
+        this.pendingClass.set(r.classes[0]._id);
         this.loadRegister();
       }
     });
@@ -270,16 +309,73 @@ export class AttendanceComponent {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
+  private snapshot(records: RegisterRecord[]): string {
+    return JSON.stringify(records.map((r) => [r.student, r.status, r.note ?? '']));
+  }
+
+  /** Guards a class or date change the same way the route guard guards a link. */
+  private ifSafeToLeave(then: () => void, revert: () => void) {
+    if (!this.dirty()) {
+      then();
+      return;
+    }
+    confirmDialog(this.dialog, {
+      title: 'Discard this register?',
+      message:
+        'You have marked students on this register without saving it. ' +
+        'Changing the class or date discards those marks.',
+      confirmLabel: 'Discard and switch',
+      cancelLabel: 'Keep editing',
+    }).subscribe((ok) => (ok ? then() : revert()));
+  }
+
+  switchClass(value: string) {
+    this.pendingClass.set(value);
+    this.ifSafeToLeave(
+      () => {
+        this.klass.set(value);
+        this.loadRegister();
+      },
+      () => this.pendingClass.set(this.klass())
+    );
+  }
+
+  switchDate(value: Date) {
+    this.pendingDate.set(value);
+    this.ifSafeToLeave(
+      () => {
+        this.date.set(value);
+        this.loadRegister();
+      },
+      () => this.pendingDate.set(this.date())
+    );
+  }
+
   loadRegister() {
     if (!this.klass()) return;
+    this.loadingRegister.set(true);
     this.api.register(this.klass(), this.dateParam()).subscribe({
       next: (r) => {
         this.records.set(r.records);
+        this.pristine.set(this.snapshot(r.records));
         this.taken.set(r.taken);
         this.takenAt.set(r.takenAt);
+        this.loadingRegister.set(false);
       },
-      error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 5000 }),
+      error: (err) => {
+        this.snack.open(errorMessage(err), 'OK', { duration: 5000 });
+        this.loadingRegister.set(false);
+      },
     });
+  }
+
+  /** Route guard contract — see `core/unsaved-changes.ts`. */
+  unsavedChanges(): boolean {
+    return this.dirty();
+  }
+
+  unsavedDescription(): string {
+    return 'a register';
   }
 
   loadSummary() {

@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -62,6 +62,7 @@ import { errorMessage } from '../../core/auth.interceptor';
     .error { color: #c62828; background: #ffebee; border-radius: 6px; padding: 10px 12px; margin-bottom: 14px; font-size: 13px; }
     .actions { display: flex; justify-content: flex-end; gap: 8px; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChangePasswordComponent {
   private fb = inject(FormBuilder);

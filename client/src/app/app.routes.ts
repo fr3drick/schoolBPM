@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, awaitingReviewGuard, moduleGuard, permGuard, platformGuard } from './core/guards';
+import { unsavedChangesGuard } from './core/unsaved-changes';
 
 export const routes: Routes = [
   { path: 'login', loadComponent: () => import('./features/login/login').then((m) => m.LoginComponent) },
@@ -127,12 +128,16 @@ export const routes: Routes = [
       {
         path: 'exams/:id',
         canActivate: [moduleGuard, permGuard],
+        // Scores sit in the grid until Save is pressed. Without this, a
+        // mis-click on the sidenav discarded a class's marks in silence.
+        canDeactivate: [unsavedChangesGuard],
         data: { module: 'exams', perms: ['exams.manage', 'results.enter', 'results.view'] },
         loadComponent: () => import('./features/exams/exam-results').then((m) => m.ExamResultsComponent),
       },
       {
         path: 'attendance',
         canActivate: [moduleGuard, permGuard],
+        canDeactivate: [unsavedChangesGuard],
         data: { module: 'attendance', perms: ['attendance.take', 'attendance.view'] },
         loadComponent: () => import('./features/attendance/attendance').then((m) => m.AttendanceComponent),
       },

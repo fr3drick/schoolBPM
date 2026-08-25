@@ -167,11 +167,41 @@ export interface AppNotification {
   createdAt: string;
 }
 
-export interface DashboardStats {
+export interface WorkflowStats {
   myOpen: number;
   myTasks: number;
   totals: Record<InstanceStatus, number> | null;
   recentMine: ProcessInstance[];
+}
+
+export interface StudentStats {
+  active: number;
+  /** Active students with no guardian email — these cannot be sent a report card. */
+  missingGuardian: number;
+}
+
+export interface ExamStats {
+  open: number;
+  draft: number;
+  published: number;
+}
+
+export interface AttendanceStats {
+  classCount: number;
+  takenToday: number;
+  missingToday: number;
+}
+
+/**
+ * Each section is null when the school does not have the module or the viewer
+ * lacks the permission, so the dashboard renders what this particular person
+ * can act on rather than a fixed set of workflow cards.
+ */
+export interface DashboardStats {
+  workflow: WorkflowStats | null;
+  students: StudentStats | null;
+  exams: ExamStats | null;
+  attendance: AttendanceStats | null;
 }
 
 export const STATUS_LABELS: Record<InstanceStatus, string> = {

@@ -92,3 +92,38 @@ table.mat-mdc-table {
 .muted {
   color: #78909c;
 }
+
+/* ------------------------------------------------------------------ *
+ * Narrow screens.
+ *
+ * The app was built at desktop width only: 24px of page padding either
+ * side and a 240px drawer left a phone with roughly a third of its
+ * screen for content. These are the shared rules; a page with its own
+ * layout (the exam grid, the register) handles its own.
+ * ------------------------------------------------------------------ */
+@media (max-width: 599px) {
+  .page {
+    padding: 16px 12px;
+  }
+
+  .page-header {
+    gap: 8px;
+    margin-bottom: 14px;
+
+    h1 {
+      font-size: 20px;
+    }
+  }
+
+  /* A dialog pinned to a desktop width scrolls sideways on a phone. */
+  .mat-mdc-dialog-surface {
+    max-width: 96vw;
+  }
+
+  /* Material's default row height wastes vertical space where there is
+     least of it. */
+  .mat-mdc-row,
+  .mat-mdc-header-row {
+    height: 44px;
+  }
+}

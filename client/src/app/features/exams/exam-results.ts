@@ -1,4 +1,4 @@
-import { Component, Inject, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Inject, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,6 +13,7 @@ import { AuthService } from '../../core/auth.service';
 import { DownloadService } from '../../core/download.service';
 import { Exam, ExamSubject, PublishOutcome, ResultRow } from '../../core/models';
 import { errorMessage } from '../../core/auth.interceptor';
+import { HasUnsavedChanges, warnBeforeUnload } from '../../core/unsaved-changes';
 
 /**
  * Publishing is the one irreversible-feeling action here — it mails every
@@ -66,6 +67,7 @@ import { errorMessage } from '../../core/auth.interceptor';
       padding: 10px 12px; margin-top: 12px; font-size: 13px; line-height: 1.5;
     }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PublishDialogComponent {
   constructor(
@@ -221,9 +223,19 @@ export class PublishDialogComponent {
     .nomail { color: #f9a825; margin-left: 4px; }
     .nomail mat-icon { font-size: 13px; width: 13px; height: 13px; vertical-align: -2px; }
     .empty-state { padding: 48px 20px; text-align: center; color: #90a4ae; }
+    @media (max-width: 719px) {
+      .page { padding: 16px 12px; }
+      .page-head { flex-direction: column; gap: 12px; }
+      .actions { flex-wrap: wrap; }
+      /* The sticky name column has to shrink or it eats the whole viewport
+         and no score column is reachable. */
+      .name { min-width: 130px; }
+      .grid th, .grid td { padding: 6px 8px; }
+    }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ExamResultsComponent {
+export class ExamResultsComponent implements HasUnsavedChanges {
   private api = inject(ApiService);
   private auth = inject(AuthService);
   private snack = inject(MatSnackBar);
@@ -243,7 +255,24 @@ export class ExamResultsComponent {
   private id = this.route.snapshot.paramMap.get('id') || '';
 
   constructor() {
+    // The router guard covers navigating within the app; this covers the tab
+    // being closed or reloaded, which the guard never sees.
+    warnBeforeUnload(() => this.dirty().size > 0);
     this.load(this.route.snapshot.queryParamMap.get('publish') === '1');
+  }
+
+  /**
+   * Route guard contract — see `core/unsaved-changes.ts`. Scores live in
+   * `dirty` until the teacher presses Save, and a grid can hold a whole
+   * class's marks for a subject before anything reaches the server.
+   */
+  unsavedChanges(): boolean {
+    return this.dirty().size > 0;
+  }
+
+  unsavedDescription(): string {
+    const n = this.dirty().size;
+    return `${n} score${n === 1 ? '' : 's'}`;
   }
 
   private load(thenPublish = false) {
@@ -278,8 +307,19 @@ export class ExamResultsComponent {
 
   setScore(student: string, subject: string, value: unknown) {
     const raw = value === '' || value === null ? null : Number(value);
+    const typed = Number.isNaN(raw as number) ? null : raw;
+    const k = this.key(student, subject);
     const next = new Map(this.dirty());
-    next.set(this.key(student, subject), Number.isNaN(raw as number) ? null : raw);
+
+    // Typing a value back to what is already saved is not a change. Without
+    // this, tabbing through the grid or clearing a cell that was already
+    // empty leaves "Save 1 change" showing and makes the unsaved-changes
+    // guard warn about work that does not exist.
+    const saved = this.rows().find((r) => r.student === student)
+      ?.scores.find((sc) => sc.subject === subject)?.score ?? null;
+    if (typed === saved) next.delete(k);
+    else next.set(k, typed);
+
     this.dirty.set(next);
   }
 

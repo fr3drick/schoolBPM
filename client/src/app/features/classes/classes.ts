@@ -1,4 +1,4 @@
-import { Component, Inject, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Inject, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
 import { MatIconModule } from '@angular/material/icon';
@@ -13,6 +13,8 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { SchoolClass, Student, UserProfile } from '../../core/models';
 import { errorMessage } from '../../core/auth.interceptor';
+import { confirmDialog } from '../../shared/confirm-dialog';
+import { LoadingBarComponent } from '../../shared/loading-bar';
 
 interface ClassDialogData {
   klass: SchoolClass | null;
@@ -58,6 +60,7 @@ interface ClassDialogData {
     .content { display: flex; flex-direction: column; min-width: 440px; padding-top: 8px; }
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ClassDialogComponent {
   name = '';
@@ -122,6 +125,7 @@ export class ClassDialogComponent {
     .filter { width: 100%; }
     .list { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow: auto; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AssignStudentsDialogComponent {
   filter = '';
@@ -149,7 +153,7 @@ export class AssignStudentsDialogComponent {
 
 @Component({
   selector: 'app-classes',
-  imports: [MatTableModule, MatIconModule, MatButtonModule, MatDialogModule],
+  imports: [MatTableModule, MatIconModule, MatButtonModule, MatDialogModule, LoadingBarComponent],
   template: `
     <div class="page">
       <div class="page-header">
@@ -163,6 +167,7 @@ export class AssignStudentsDialogComponent {
       </div>
 
       <div class="table-card">
+        <app-loading-bar [active]="loading()" />
         @if (!classes().length && loaded()) {
           <div class="empty-state">
             <mat-icon>groups</mat-icon>
@@ -210,6 +215,7 @@ export class AssignStudentsDialogComponent {
     .actions-cell { text-align: right; white-space: nowrap; }
     .actions-cell button { margin-left: 4px; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ClassesComponent {
   private api = inject(ApiService);
@@ -220,6 +226,7 @@ export class ClassesComponent {
   classes = signal<SchoolClass[]>([]);
   teachers = signal<UserProfile[]>([]);
   loaded = signal(false);
+  loading = signal(false);
   canManage = computed(() => this.auth.hasPerm('classes.manage'));
   columns = ['name', 'formTeacher', 'students', 'actions'];
 
@@ -234,9 +241,10 @@ export class ClassesComponent {
   }
 
   load() {
+    this.loading.set(true);
     this.api.classes().subscribe({
-      next: (res) => { this.classes.set(res.classes); this.loaded.set(true); },
-      error: () => this.loaded.set(true),
+      next: (res) => { this.classes.set(res.classes); this.loaded.set(true); this.loading.set(false); },
+      error: () => { this.loaded.set(true); this.loading.set(false); },
     });
   }
 
@@ -276,10 +284,18 @@ export class ClassesComponent {
   }
 
   remove(klass: SchoolClass) {
-    if (!confirm(`Delete the class "${klass.name}"?`)) return;
-    this.api.deleteClass(klass._id).subscribe({
-      next: () => this.load(),
-      error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 5000 }),
+    confirmDialog(this.dialog, {
+      title: 'Delete this class?',
+      message:
+        `"${klass.name}" will be removed. Students in it are not deleted, but they ` +
+        `become unassigned and will need putting into another class.`,
+      confirmLabel: 'Delete class',
+    }).subscribe((ok) => {
+      if (!ok) return;
+      this.api.deleteClass(klass._id).subscribe({
+        next: () => this.load(),
+        error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 5000 }),
+      });
     });
   }
 }

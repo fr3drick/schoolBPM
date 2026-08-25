@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -70,6 +70,7 @@ import { errorMessage } from '../../core/auth.interceptor';
     a.register { height: 44px; }
     .register-note { font-size: 12px; color: #78909c; line-height: 1.5; margin-top: 12px; text-align: center; }
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LoginComponent {
   private fb = inject(FormBuilder);
