@@ -18,26 +18,27 @@ export const DEFAULT_ROLES = [
   {
     name: 'Owner',
     description: 'School owner',
-    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage', 'audit.view', 'email.view', 'students.view', 'students.manage', 'classes.manage', 'subjects.manage', 'exams.manage', 'results.enter', 'results.view', 'attendance.take', 'attendance.view', 'reports.issue', 'reports.view', 'comms.send', 'comms.view'],
+    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage', 'audit.view', 'email.view', 'students.view', 'students.manage', 'classes.manage', 'subjects.manage', 'exams.manage', 'results.enter', 'results.view', 'attendance.take', 'attendance.view', 'reports.issue', 'reports.view', 'comms.send', 'comms.view', 'teachers.view'],
   },
   {
     name: 'Proprietor',
     description: 'School proprietor',
-    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'audit.view', 'email.view', 'students.view', 'students.manage', 'classes.manage', 'subjects.manage', 'exams.manage', 'results.view', 'attendance.view', 'reports.issue', 'reports.view', 'comms.send', 'comms.view'],
+    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'audit.view', 'email.view', 'students.view', 'students.manage', 'classes.manage', 'subjects.manage', 'exams.manage', 'results.view', 'attendance.view', 'reports.issue', 'reports.view', 'comms.send', 'comms.view', 'teachers.view'],
   },
   {
     name: 'Principal',
     description: 'Head of school',
-    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage', 'audit.view', 'students.view', 'students.manage', 'classes.manage', 'subjects.manage', 'exams.manage', 'results.enter', 'results.view', 'attendance.take', 'attendance.view', 'reports.issue', 'reports.view', 'comms.send', 'comms.view'],
+    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage', 'audit.view', 'students.view', 'students.manage', 'classes.manage', 'subjects.manage', 'exams.manage', 'results.enter', 'results.view', 'attendance.take', 'attendance.view', 'reports.issue', 'reports.view', 'comms.send', 'comms.view', 'teachers.view'],
   },
   {
     name: 'Admin',
     description: 'School administrator',
-    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage', 'students.view', 'students.manage', 'classes.manage', 'subjects.manage', 'exams.manage', 'results.enter', 'results.view', 'attendance.take', 'attendance.view', 'reports.issue', 'reports.view', 'comms.send', 'comms.view'],
+    permissions: ['instances.initiate', 'instances.act', 'instances.view_all', 'definitions.manage', 'students.view', 'students.manage', 'classes.manage', 'subjects.manage', 'exams.manage', 'results.enter', 'results.view', 'attendance.take', 'attendance.view', 'reports.issue', 'reports.view', 'comms.send', 'comms.view', 'teachers.view'],
   },
   {
     name: 'Teacher',
     description: 'Teaching staff',
+    isTeaching: true,
     permissions: ['instances.initiate', 'instances.act', 'students.view', 'results.enter', 'results.view', 'attendance.take', 'attendance.view', 'reports.view'],
   },
 ];

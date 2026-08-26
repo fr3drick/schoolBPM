@@ -26,6 +26,7 @@ router.get('/', permit('roles.manage', 'users.manage', 'definitions.manage'), as
       description: r.description,
       permissions: r.permissions,
       isSystem: r.isSystem,
+      isTeaching: r.isTeaching,
       userCount: countMap.get(String(r._id)) || 0,
     })),
   });
@@ -58,6 +59,7 @@ router.post('/', permit('roles.manage'), async (req, res) => {
     name: name.trim(),
     description,
     permissions: cleanPermissions(permissions),
+    isTeaching: Boolean(req.body?.isTeaching),
   });
   logAudit(req.user, 'roles.create', 'role', role._id, { name: role.name, permissions: role.permissions });
   res.status(201).json({ role });
@@ -79,6 +81,9 @@ router.put('/:id', permit('roles.manage'), async (req, res) => {
   }
   if (description !== undefined) role.description = description;
   if (permissions !== undefined) role.permissions = cleanPermissions(permissions);
+  // Which roles count as teaching staff is the school's own call — it is what
+  // the teacher directory lists.
+  if (req.body?.isTeaching !== undefined) role.isTeaching = Boolean(req.body.isTeaching);
   await role.save();
   logAudit(req.user, 'roles.update', 'role', role._id, { name: role.name, permissions: role.permissions });
   res.json({ role });

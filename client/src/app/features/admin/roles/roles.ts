@@ -37,6 +37,11 @@ interface RoleDialogData {
         <input matInput [(ngModel)]="description" />
       </mat-form-field>
 
+      <mat-checkbox [(ngModel)]="isTeaching" class="teaching">
+        Teaching staff
+        <span class="hint">Members of this role appear in the teacher directory</span>
+      </mat-checkbox>
+
       <div class="perm-title">Permissions</div>
       @for (group of groups(); track group) {
         <div class="perm-group">
@@ -61,12 +66,15 @@ interface RoleDialogData {
     .perm-group { margin-bottom: 12px; display: flex; flex-direction: column; }
     .perm-group-name { font-weight: 500; font-size: 13px; margin-bottom: 2px; }
     .perm-key { color: #90a4ae; font-size: 11px; font-family: monospace; margin-left: 6px; }
+    .teaching { margin: 4px 0 16px; }
+    .hint { display: block; color: #90a4ae; font-size: 12px; margin-left: 0; }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RoleDialogComponent {
   name = '';
   description = '';
+  isTeaching = false;
   selected = new Set<string>();
 
   constructor(
@@ -76,6 +84,7 @@ export class RoleDialogComponent {
     if (data.role) {
       this.name = data.role.name;
       this.description = data.role.description;
+      this.isTeaching = !!data.role.isTeaching;
       this.selected = new Set(data.role.permissions);
     }
   }
@@ -97,6 +106,7 @@ export class RoleDialogComponent {
     this.ref.close({
       name: this.name.trim(),
       description: this.description,
+      isTeaching: this.isTeaching,
       permissions: [...this.selected],
     });
   }

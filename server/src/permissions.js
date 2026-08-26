@@ -21,6 +21,7 @@ export const PERMISSIONS = [
   { key: 'attendance.view', label: 'View attendance records', group: 'Attendance', module: 'attendance' },
   { key: 'reports.issue', label: 'Issue report cards', group: 'Report cards', module: 'reports' },
   { key: 'reports.view', label: 'View report cards', group: 'Report cards', module: 'reports' },
+  { key: 'teachers.view', label: 'View the teacher directory', group: 'Teachers', module: 'teachers' },
   { key: 'comms.send', label: 'Send announcements', group: 'Communications', module: 'communications' },
   { key: 'comms.view', label: 'View sent announcements', group: 'Communications', module: 'communications' },
 ];

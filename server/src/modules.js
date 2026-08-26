@@ -54,6 +54,15 @@ export const MODULES = [
     permissions: ['reports.issue', 'reports.view'],
   },
   {
+    key: 'teachers',
+    name: 'Teachers',
+    description: 'A directory of teaching staff, their classes and their contact details.',
+    defaultOn: false,
+    // Teaching staff are users, and user administration is never module-gated,
+    // so this stands on nothing.
+    permissions: ['teachers.view'],
+  },
+  {
     key: 'communications',
     name: 'Communications',
     description: 'Bulk announcements to staff or guardians, delivered through the mail outbox.',

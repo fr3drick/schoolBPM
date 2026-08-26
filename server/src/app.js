@@ -21,6 +21,7 @@ import examRoutes from './routes/exams.js';
 import attendanceRoutes from './routes/attendance.js';
 import reportRoutes from './routes/reports.js';
 import communicationRoutes from './routes/communications.js';
+import teacherRoutes from './routes/teachers.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -50,6 +51,7 @@ app.use('/api/exams', examRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/communications', communicationRoutes);
+app.use('/api/teachers', teacherRoutes);
 
 // Serve the built Angular client from the same origin, so the SPA's relative
 // /api calls need no CORS and no second web server. Skipped in dev, where the

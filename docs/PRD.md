@@ -95,8 +95,8 @@ five ready-made school processes.
 ## 7. Functional requirements
 
 FR-1 to FR-36 shipped in **v1.0**. FR-37 to FR-40 are the **v1.1** additions covered by
-§7.10, FR-41 to FR-50 the **v1.2** self-onboarding scope in §7.11, and FR-51 to FR-67 the
-**v1.3** module system and school-management modules in §7.12–7.14; the wider release plan
+§7.10, FR-41 to FR-50 the **v1.2** self-onboarding scope in §7.11, and FR-51 to FR-71 the
+**v1.3** module system and school-management modules in §7.12–7.15; the wider release plan
 is in §11.
 
 ### 7.1 Authentication & accounts
@@ -258,6 +258,15 @@ school platform assembled from **modules**, of which the workflow engine becomes
 | FR-65 | Attendance rates are computed from the registers on read, never kept as a counter that could drift from them. `late` counts as attending | P1 |
 | FR-66 | Report cards combine an exam's results with the term's attendance and the class average; the module requires both Exams and Attendance | P1 |
 | FR-67 | Announcements can be sent to all staff, all guardians, or the guardians of one class, through the outbox. A guardian with several children at the school receives one copy, not one per child, and the recipient count is shown before sending | P1 |
+
+### 7.15 Teacher directory
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-68 | A `teachers` module lists the school's teaching staff — name, email, role, the classes they are form teacher of, and whether they have signed in yet. Visible to Admin, Principal, Owner and Proprietor via `teachers.view`; not to Super Admin, whose remit is user and role administration, nor to teachers themselves | P1 |
+| FR-69 | Membership follows an `isTeaching` flag on the **role**, not a role named "Teacher". Roles are the school's own data — it may rename the seeded role or run several teaching roles alongside it — and a directory keyed on a name would go silently empty after a rename or list only part of the staff. The flag is set per role on the Roles screen | P0 |
+| FR-70 | The directory is read-only. Accounts are created and edited in Administration → Users under `users.manage`; a second screen editing the same records would be one more place to keep consistent | P1 |
+| FR-71 | When no role is flagged as teaching, the screen says so and points to the Roles screen, rather than showing an empty list indistinguishable from a school with no teachers | P2 |
 
 ## 8. Non-functional requirements
 
