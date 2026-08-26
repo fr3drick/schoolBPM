@@ -47,6 +47,48 @@ async function clean(body, schoolId) {
   };
 }
 
+/**
+ * Staff who can be made form teacher of a class.
+ *
+ * This exists because the class dialog cannot use /api/users: that router is
+ * gated on `users.manage`, which only Super Admin holds — and Super Admin has
+ * no `classes.manage`, so it cannot open the Classes screen at all. Between
+ * them, nobody could assign a form teacher. Gating this on the permission
+ * that class management actually uses is what closes that gap.
+ *
+ * Deliberately not gated on the `teachers` module: assigning a form teacher
+ * is part of running classes, and must not require a school to have bought
+ * the teacher directory.
+ *
+ * Returns every active member of staff rather than only teaching roles — a
+ * principal or head of year taking a form group is ordinary — but lists the
+ * teaching ones first and labels each with its role, so the common choice is
+ * at the top and an unusual one is made knowingly.
+ */
+router.get('/assignable-teachers', permit('classes.manage'), async (req, res) => {
+  const users = await User.find({ school: req.user.school._id, active: true })
+    // isSystem is in the projection because it is filtered on below — a
+    // populate that omits it returns undefined, not false, and the filter
+    // silently passes everything.
+    .populate('role', 'name isTeaching isSystem')
+    .sort({ name: 1 });
+
+  const staff = users
+    // A platform admin is never school staff, and the seeded Super Admin
+    // administers accounts rather than teaching a form group.
+    .filter((u) => !u.isPlatformAdmin && !u.role?.isSystem)
+    .map((u) => ({
+      id: u._id,
+      name: u.name,
+      email: u.email,
+      role: u.role?.name || '',
+      isTeaching: !!u.role?.isTeaching,
+    }));
+
+  staff.sort((a, b) => Number(b.isTeaching) - Number(a.isTeaching) || a.name.localeCompare(b.name));
+  res.json({ teachers: staff });
+});
+
 router.post('/', permit('classes.manage'), async (req, res) => {
   const data = await clean(req.body, req.user.school._id);
   const klass = await Class.create({ ...data, school: req.user.school._id });

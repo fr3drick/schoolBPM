@@ -427,3 +427,12 @@ export interface TeacherDirectory {
   teachingRoles: { _id: string; name: string }[];
   teachers: Teacher[];
 }
+
+/** A staff member who can be made form teacher of a class. */
+export interface AssignableTeacher {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  isTeaching: boolean;
+}

@@ -11,14 +11,14 @@ import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angu
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
-import { SchoolClass, Student, UserProfile } from '../../core/models';
+import { AssignableTeacher, SchoolClass, Student } from '../../core/models';
 import { errorMessage } from '../../core/auth.interceptor';
 import { confirmDialog } from '../../shared/confirm-dialog';
 import { LoadingBarComponent } from '../../shared/loading-bar';
 
 interface ClassDialogData {
   klass: SchoolClass | null;
-  teachers: UserProfile[];
+  teachers: AssignableTeacher[];
 }
 
 @Component({
@@ -46,7 +46,7 @@ interface ClassDialogData {
         <mat-select [(ngModel)]="formTeacher">
           <mat-option [value]="''">None</mat-option>
           @for (t of data.teachers; track t.id) {
-            <mat-option [value]="t.id">{{ t.name }} — {{ t.role?.name }}</mat-option>
+            <mat-option [value]="t.id">{{ t.name }} — {{ t.role }}</mat-option>
           }
         </mat-select>
       </mat-form-field>
@@ -224,7 +224,7 @@ export class ClassesComponent {
   private auth = inject(AuthService);
 
   classes = signal<SchoolClass[]>([]);
-  teachers = signal<UserProfile[]>([]);
+  teachers = signal<AssignableTeacher[]>([]);
   loaded = signal(false);
   loading = signal(false);
   canManage = computed(() => this.auth.hasPerm('classes.manage'));
@@ -232,11 +232,12 @@ export class ClassesComponent {
 
   constructor() {
     this.load();
-    // Only users.manage holders can list users; a form teacher is optional,
-    // so an empty list is a normal outcome rather than an error to surface.
-    this.api.users().subscribe({
-      next: (res) => this.teachers.set(res.users.filter((u) => u.active)),
-      error: () => this.teachers.set([]),
+    // Not api.users(): that needs users.manage, which only Super Admin holds,
+    // and Super Admin has no classes.manage to reach this screen — so the
+    // dropdown was empty for everyone who could actually open it.
+    this.api.assignableTeachers().subscribe({
+      next: (res) => this.teachers.set(res.teachers),
+      error: (err) => this.snack.open(errorMessage(err), 'OK', { duration: 5000 }),
     });
   }
 

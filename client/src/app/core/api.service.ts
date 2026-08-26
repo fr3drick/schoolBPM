@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import {
   Announcement,
   AppNotification,
+  AssignableTeacher,
   AttendanceSummaryRow,
   Audience,
   DashboardStats,
@@ -344,6 +345,14 @@ export class ApiService {
     if (classId) params['class'] = classId;
     return this.http.get<{ count: number }>('/api/communications/audience', { params });
   }
+  /**
+   * Staff assignable as form teacher. Distinct from users(), which needs
+   * users.manage — a permission nobody who manages classes actually holds.
+   */
+  assignableTeachers() {
+    return this.http.get<{ teachers: AssignableTeacher[] }>('/api/classes/assignable-teachers');
+  }
+
   // ---- teachers ----
   teachers() {
     return this.http.get<TeacherDirectory>('/api/teachers');
