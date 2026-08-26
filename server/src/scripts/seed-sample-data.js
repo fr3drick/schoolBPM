@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import mongoose from 'mongoose';
+import { createHash } from 'node:crypto';
 import School from '../models/School.js';
 import Class from '../models/Class.js';
 import Subject from '../models/Subject.js';
@@ -104,25 +105,39 @@ console.log(`Classes: ${Object.keys(classes).join(', ')}`);
 // bounces against the sending reputation, and a real stranger's address is
 // out of the question.
 const OWNER = 'fredrickirubor@gmail.com';
-const parent = (tag) => OWNER.replace('@', `+${tag}@`);
+
+/**
+ * A random-looking +alias, derived from the guardian's name rather than
+ * generated freshly each run.
+ *
+ * Deterministic on purpose: the seeder is idempotent, and an address that
+ * changed on every re-run would leave a trail of stale guardians and make
+ * the outbox impossible to follow. Keyed on the guardian, not the student,
+ * so siblings genuinely share one address and the de-duplication in a
+ * general announcement is real rather than staged.
+ */
+const parent = (guardianName) => {
+  const tag = createHash('sha1').update(guardianName).digest('hex').slice(0, 8);
+  return OWNER.replace('@', `+${tag}@`);
+};
 
 const STUDENTS = [
   // JSS 1A
-  ['SHS/2026/001', 'Chidera', 'Okonkwo', 'Ada', 'female', 'JSS 1A', 'Mrs Ngozi Okonkwo', 'Mother', parent('okonkwo'), '+2348031110001'],
-  ['SHS/2026/002', 'Emeka',   'Okonkwo', '',    'male',   'JSS 1A', 'Mrs Ngozi Okonkwo', 'Mother', parent('okonkwo'), '+2348031110001'],
-  ['SHS/2026/003', 'Aisha',   'Bello',   'Zainab', 'female', 'JSS 1A', 'Alhaji Musa Bello', 'Father', parent('bello'), '+2348031110002'],
-  ['SHS/2026/004', 'Tunde',   'Adeyemi', '',    'male',   'JSS 1A', 'Mr Segun Adeyemi', 'Father', parent('adeyemi'), '+2348031110003'],
-  ['SHS/2026/005', 'Ifeoma',  'Nwosu',   'Chi',  'female', 'JSS 1A', 'Mrs Grace Nwosu', 'Mother', parent('nwosu'), '+2348031110004'],
-  ['SHS/2026/006', 'Yusuf',   'Ibrahim', '',    'male',   'JSS 1A', 'Mallam Sani Ibrahim', 'Father', parent('ibrahim'), '+2348031110005'],
+  ['SHS/2026/001', 'Chidera', 'Okonkwo', 'Ada', 'female', 'JSS 1A', 'Mrs Ngozi Okonkwo', 'Mother', parent('Mrs Ngozi Okonkwo'), '+2348031110001'],
+  ['SHS/2026/002', 'Emeka',   'Okonkwo', '',    'male',   'JSS 1A', 'Mrs Ngozi Okonkwo', 'Mother', parent('Mrs Ngozi Okonkwo'), '+2348031110001'],
+  ['SHS/2026/003', 'Aisha',   'Bello',   'Zainab', 'female', 'JSS 1A', 'Alhaji Musa Bello', 'Father', parent('Alhaji Musa Bello'), '+2348031110002'],
+  ['SHS/2026/004', 'Tunde',   'Adeyemi', '',    'male',   'JSS 1A', 'Mr Segun Adeyemi', 'Father', parent('Mr Segun Adeyemi'), '+2348031110003'],
+  ['SHS/2026/005', 'Ifeoma',  'Nwosu',   'Chi',  'female', 'JSS 1A', 'Mrs Grace Nwosu', 'Mother', parent('Mrs Grace Nwosu'), '+2348031110004'],
+  ['SHS/2026/006', 'Yusuf',   'Ibrahim', '',    'male',   'JSS 1A', 'Mallam Sani Ibrahim', 'Father', parent('Mallam Sani Ibrahim'), '+2348031110005'],
   // Deliberately without an email: shows the "results cannot be sent" warning
   // on the grid and the skipped tally on publish.
   ['SHS/2026/007', 'Blessing', 'Etim',   '',    'female', 'JSS 1A', 'Mr Etim Bassey', 'Father', '', '+2348031110006'],
   // JSS 2A
-  ['SHS/2025/011', 'Kelechi', 'Eze',     '',    'male',   'JSS 2A', 'Mrs Amaka Eze', 'Mother', parent('eze'), '+2348031110007'],
-  ['SHS/2025/012', 'Fatima',  'Abubakar', 'Hauwa', 'female', 'JSS 2A', 'Hajiya Binta Abubakar', 'Mother', parent('abubakar'), '+2348031110008'],
-  ['SHS/2025/013', 'Daniel',  'Ogunleye', '',   'male',   'JSS 2A', 'Mr Kunle Ogunleye', 'Father', parent('ogunleye'), '+2348031110009'],
-  ['SHS/2025/014', 'Amara',   'Uche',    'Ngo',  'female', 'JSS 2A', 'Mrs Chioma Uche', 'Mother', parent('uche'), '+2348031110010'],
-  ['SHS/2025/015', 'Samuel',  'Adebayo', '',    'male',   'JSS 2A', 'Mr Wale Adebayo', 'Father', parent('adebayo'), '+2348031110011'],
+  ['SHS/2025/011', 'Kelechi', 'Eze',     '',    'male',   'JSS 2A', 'Mrs Amaka Eze', 'Mother', parent('Mrs Amaka Eze'), '+2348031110007'],
+  ['SHS/2025/012', 'Fatima',  'Abubakar', 'Hauwa', 'female', 'JSS 2A', 'Hajiya Binta Abubakar', 'Mother', parent('Hajiya Binta Abubakar'), '+2348031110008'],
+  ['SHS/2025/013', 'Daniel',  'Ogunleye', '',   'male',   'JSS 2A', 'Mr Kunle Ogunleye', 'Father', parent('Mr Kunle Ogunleye'), '+2348031110009'],
+  ['SHS/2025/014', 'Amara',   'Uche',    'Ngo',  'female', 'JSS 2A', 'Mrs Chioma Uche', 'Mother', parent('Mrs Chioma Uche'), '+2348031110010'],
+  ['SHS/2025/015', 'Samuel',  'Adebayo', '',    'male',   'JSS 2A', 'Mr Wale Adebayo', 'Father', parent('Mr Wale Adebayo'), '+2348031110011'],
 ];
 
 const students = {};
