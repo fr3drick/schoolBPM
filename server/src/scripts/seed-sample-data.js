@@ -53,7 +53,7 @@ console.log(`Seeding ${school.name}\n`);
 
 // The data is meaningless with the modules that display it switched off.
 const { modules, error } = validateModuleSelection([
-  ...new Set([...(school.modules || []), 'students', 'exams', 'attendance', 'reports', 'communications']),
+  ...new Set([...(school.modules || []), 'students', 'exams', 'attendance', 'reports', 'teachers', 'communications']),
 ]);
 if (error) throw new Error(error);
 school.modules = modules;
