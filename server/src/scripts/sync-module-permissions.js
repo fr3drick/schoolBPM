@@ -5,52 +5,67 @@ import { DEFAULT_ROLES } from '../services/provisioning.js';
 import { MODULES } from '../modules.js';
 
 /**
- * Grants the exams, attendance, report-card and communications permissions to
- * the default roles that should hold them, across schools onboarded before
- * those modules existed.
+ * Grants each default role the module permissions it is supposed to hold, for
+ * schools onboarded before those modules existed.
  *
  * Without this, enabling a module for an existing school gives nobody the
  * right to use it: the module gate opens and every request still fails on
- * permissions, which looks like the module is broken.
+ * permissions, so the feature looks broken and its nav item never appears.
  *
- * Uses $addToSet against roles matched by name rather than re-running
- * provisionSchool, which $sets the whole default definition and would discard
- * permission changes a school has made to its own roles. Only ever adds — a
- * school that has deliberately taken a permission away from a role does not
- * get it forced back. Safe to re-run.
+ * Convergence is decided **per school per module**, not per role. A school
+ * where no role holds any of a module's permissions predates that module and
+ * is granted the defaults; a school where any role holds one already knows
+ * about the module, so a role missing it was curated deliberately and is left
+ * alone.
+ *
+ * Deciding this per role would be wrong. Teacher's whole share of the
+ * students module is `students.view` — so a Teacher role stripped of it looks
+ * exactly like one that predates the module, and a per-role rule would force
+ * it back onto every school that had removed it on purpose. The school-level
+ * signal tells the two apart.
+ *
+ * Matches roles by name rather than re-running provisionSchool, which $sets
+ * whole role definitions and would discard a school's own edits. Only ever
+ * adds, never removes. Safe to re-run.
  */
 const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/schoolbpm';
 await mongoose.connect(uri);
 console.log(`Connected to ${uri}`);
 
-// Only the permissions that belong to the modules added after the first
-// release; the rest were already granted at provisioning time.
-const NEW_MODULES = ['exams', 'attendance', 'reports', 'communications'];
-const scope = new Set(MODULES.filter((m) => NEW_MODULES.includes(m.key)).flatMap((m) => m.permissions));
-
+const allSchools = (await Role.distinct('school')).filter(Boolean);
 let total = 0;
-for (const role of DEFAULT_ROLES) {
-  const wanted = role.permissions.filter((p) => scope.has(p));
-  if (!wanted.length) continue;
 
-  // Counted from the documents that are actually short of a permission, not
-  // from modifiedCount: Mongoose stamps updatedAt on every updateMany, so a
-  // no-op $addToSet still reports every role as modified and the script
-  // would claim work it did not do on each re-run.
-  const stale = await Role.countDocuments({
-    name: role.name,
-    permissions: { $not: { $all: wanted } },
-  });
-  if (!stale) {
-    console.log(`${role.name}: already up to date`);
+for (const module of MODULES) {
+  // Schools that already know about this module, however partially.
+  const aware = (await Role.distinct('school', { permissions: { $in: module.permissions } }))
+    .map(String);
+  const awareSet = new Set(aware);
+  const targets = allSchools.filter((id) => !awareSet.has(String(id)));
+
+  if (!targets.length) {
+    console.log(`${module.key}: all ${allSchools.length} school(s) already know this module`);
     continue;
   }
 
-  await Role.updateMany({ name: role.name }, { $addToSet: { permissions: { $each: wanted } } });
-  total += stale;
-  console.log(`${role.name}: ${stale} role(s) granted ${wanted.length} permission(s)`);
+  for (const role of DEFAULT_ROLES) {
+    const wanted = role.permissions.filter((p) => module.permissions.includes(p));
+    if (!wanted.length) continue;
+
+    const result = await Role.updateMany(
+      { name: role.name, school: { $in: targets } },
+      { $addToSet: { permissions: { $each: wanted } } }
+    );
+    // Every matched role is short of the permissions by construction — the
+    // school held none of them — so matchedCount is the honest number here,
+    // unlike modifiedCount, which Mongoose inflates by stamping updatedAt.
+    if (result.matchedCount) {
+      total += result.matchedCount;
+      console.log(`${module.key} → ${role.name}: ${result.matchedCount} role(s) granted ${wanted.join(', ')}`);
+    }
+  }
 }
 
-if (!total) console.log('\nNothing to do — every role already has these permissions.');
+if (!total) console.log('\nNothing to do — every school already has its module permissions.');
+else console.log(`\n${total} role(s) updated.`);
 
 await mongoose.disconnect();

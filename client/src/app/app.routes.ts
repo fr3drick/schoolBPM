@@ -142,6 +142,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/attendance/attendance').then((m) => m.AttendanceComponent),
       },
       {
+        path: 'teachers',
+        canActivate: [moduleGuard, permGuard],
+        data: { module: 'teachers', perms: ['teachers.view'] },
+        loadComponent: () => import('./features/teachers/teachers').then((m) => m.TeachersComponent),
+      },
+      {
         path: 'reports',
         canActivate: [moduleGuard, permGuard],
         data: { module: 'reports', perms: ['reports.issue', 'reports.view'] },

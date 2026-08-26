@@ -228,6 +228,9 @@ export class ShellComponent {
     if (this.auth.canUse('attendance', 'attendance.take', 'attendance.view')) {
       items.push({ label: 'Attendance', icon: 'how_to_reg', link: '/attendance' });
     }
+    if (this.auth.canUse('teachers', 'teachers.view')) {
+      items.push({ label: 'Teachers', icon: 'co_present', link: '/teachers' });
+    }
     if (this.auth.canUse('reports', 'reports.issue', 'reports.view')) {
       items.push({ label: 'Report cards', icon: 'description', link: '/reports' });
     }

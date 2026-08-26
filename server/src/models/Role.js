@@ -9,6 +9,12 @@ const roleSchema = new mongoose.Schema(
     // Each school's seeded Super Admin role: cannot be edited or deleted, so
     // every school keeps an account type that manages users/roles only.
     isSystem: { type: Boolean, default: false },
+    // Marks a role as teaching staff, which is what the teacher directory
+    // lists. A flag rather than matching the name "Teacher": roles are the
+    // school's own data, so it may rename the seeded one or run several
+    // teaching roles — Senior Teacher, Head of Department — and a directory
+    // that matched on a name would quietly go empty or miss half the staff.
+    isTeaching: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

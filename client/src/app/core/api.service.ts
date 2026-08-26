@@ -12,6 +12,7 @@ import {
   Register,
   ReportCardRow,
   ResultRow,
+  TeacherDirectory,
   PermissionDef,
   ProcessDefinition,
   ProcessInstance,
@@ -343,6 +344,11 @@ export class ApiService {
     if (classId) params['class'] = classId;
     return this.http.get<{ count: number }>('/api/communications/audience', { params });
   }
+  // ---- teachers ----
+  teachers() {
+    return this.http.get<TeacherDirectory>('/api/teachers');
+  }
+
   sendAnnouncement(body: { subject: string; body: string; audience: Audience; class?: string }) {
     return this.http.post<{ announcement: Announcement; queued: number }>('/api/communications', body);
   }

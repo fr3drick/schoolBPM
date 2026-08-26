@@ -10,6 +10,8 @@ export interface Role {
   description: string;
   permissions: string[];
   isSystem?: boolean;
+  /** Whether this role counts as teaching staff, for the teacher directory. */
+  isTeaching?: boolean;
   userCount?: number;
 }
 
@@ -405,4 +407,23 @@ export interface ReportCardRow {
   attendanceRate: number | null;
   guardianCount: number;
   ready: boolean;
+}
+
+/** A member of teaching staff, as listed in the teacher directory. */
+export interface Teacher {
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
+  active: boolean;
+  mustChangePassword: boolean;
+  formClasses: { _id: string; name: string; active: boolean }[];
+  createdAt: string;
+}
+
+export interface TeacherDirectory {
+  /** False when no role is flagged as teaching — an empty list with a cause. */
+  configured: boolean;
+  teachingRoles: { _id: string; name: string }[];
+  teachers: Teacher[];
 }
